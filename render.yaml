@@ -1,0 +1,22 @@
+# Closed-alpha staging only. Enable via Render Blueprints after setting the Neon DB URL.
+# The free Render service sleeps after inactivity and is NOT suitable for an always-on RF gateway.
+services:
+  - type: web
+    name: meshquest-staging
+    runtime: docker
+    plan: free
+    region: frankfurt
+    branch: main
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
+    envVars:
+      - key: PORT
+        value: "8000"
+      - key: MESHQUEST_DATABASE_URL
+        sync: false
+      - key: MESHQUEST_ADMIN_KEY
+        generateValue: true
+      - key: MESHQUEST_REQUIRE_STAGING_PASSWORD
+        value: "1"
+      - key: MESHQUEST_STAGING_PASSWORD
+        sync: false
