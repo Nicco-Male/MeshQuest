@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="referrer" content="no-referrer"><title>MeshQuest — Creator Studio (alpha)</title>
+  <style>
+    :root{color-scheme:dark;--bg:#0e1725;--surface:#1b2938;--line:#344759;--ink:#e8f3f4;--sub:#b4c5d0;--accent:#36b9a5}
+    *{box-sizing:border-box}body{font:15px system-ui,sans-serif;background:var(--bg);color:var(--ink);margin:0;line-height:1.48}
+    main{max-width:1080px;margin:auto;padding:24px 18px 60px}h1{font-size:28px;margin:0 0 8px}h2{font-size:19px;margin:8px 0}h3{font-size:16px;margin:10px 0}
+    p{color:var(--sub)}.top,.row,.actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.top{justify-content:space-between}
+    .card{border:1px solid var(--line);border-radius:12px;background:var(--surface);padding:18px;margin-top:16px}.nested{border-left:3px solid var(--accent);padding:14px;margin:12px 0;background:#101e2d;border-radius:5px}
+    .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}label{font-size:13px;display:block;margin-bottom:9px;color:var(--sub)}
+    input,textarea,select{width:100%;background:#101e2d;color:var(--ink);border:1px solid #586a7a;padding:10px;border-radius:7px;font:inherit;margin-top:4px}
+    textarea{min-height:72px;resize:vertical}button,.link{border:1px solid var(--accent);color:var(--ink);background:#204d4b;padding:10px 14px;border-radius:7px;cursor:pointer;font:inherit;text-decoration:none}
+    button.secondary{background:transparent;border-color:#667b87}button.danger{border-color:#9e6c70;background:transparent}button:disabled{opacity:.5;cursor:wait}
+    pre{white-space:pre-wrap;overflow-wrap:anywhere;max-height:340px;overflow:auto;background:#0a1420;padding:12px;border-radius:8px;border:1px solid var(--line);font-size:12px}
+    a{color:#82e5d9}.notice{padding:10px 12px;border:1px solid #936d44;background:#39271b;border-radius:8px;color:#f2d1a9}
+    @media(max-width:680px){.grid{grid-template-columns:1fr}main{padding:14px}button{width:100%}}
+  </style>
+</head>
+<body><main>
+  <div class="top"><div><h1>MeshQuest · Creator Studio</h1><p id="subtitle">Community missions, chapters and story expansions</p></div><div class="actions"><select id="language" aria-label="Language" style="width:auto"><option value="en">English</option><option value="it">Italiano</option></select><a class="link" href="/">Leaderboard</a></div></div>
+  <p class="notice" id="warning">ALPHA — Draft authoring only. Simulation is synthetic; no radio commands or XP rewards. The Pisa server reviews every submission.</p>
+  <section class="card"><h2>1 · Gateway authentication</h2><div class="grid">
+    <label>Gateway token (never saved in browser storage)<input id="token" type="password" autocomplete="off" placeholder="Paste your gateway token"></label>
+    <label>Server connection<input disabled value="Same-origin HTTPS API (Pisa)"></label>
+  </div><div class="actions"><button id="connect">Test connection</button><span id="authStatus" role="status"></span></div></section>
+  <section class="card"><h2>2 · Story pack</h2><div id="pack"></div></section>
+  <section class="card"><div class="top"><h2>3 · Chapters and missions</h2><button id="addChapter" class="secondary">+ Add chapter</button></div><div id="chapters"></div></section>
+  <section class="card"><h2>4 · Test and submit</h2><p>Simulate the draft with hypothetical observations. No database updates, no LoRa traffic, no XP.</p>
+    <div class="grid"><label>Discovered outpost NodeIDs (comma-separated)<input id="fakeOutposts" placeholder="!11223344,!55667788"></label>
+    <label>Reached gateway IDs (comma-separated)<input id="fakeGateways" placeholder="pisa-gw"></label>
+    <label>Solved riddle mission slugs (comma-separated)<input id="fakeRiddles" placeholder="first-riddle"></label></div>
+    <div class="actions"><button id="validate" class="secondary">Validate draft</button><button id="simulate" class="secondary">Simulate</button><button id="submit">Submit to Pisa for review</button><button id="export" class="secondary">Export JSON</button></div>
+    <h3>Result</h3><pre id="result" role="status">No actions performed.</pre>
+  </section>
+  <p><a href="https://github.com/Nicco-Male/MeshQuest/blob/main/docs/CONTENT_PACKS.md" rel="noopener noreferrer">Authoring documentation (EN)</a> · <a href="https://github.com/Nicco-Male/MeshQuest/blob/main/docs/CONTENT_PACKS.it.md" rel="noopener noreferrer">Guida italiana</a></p>
+</main>
+<script>
+'use strict';
+const $=id=>document.getElementById(id);
+const txt={en:{subtitle:'Community missions, chapters and story expansions',warning:'ALPHA — Draft authoring only. Simulation is synthetic; no radio commands or XP rewards. The Pisa server reviews every submission.'},it:{subtitle:'Missioni, capitoli ed espansioni creati dalla comunità',warning:'ALPHA — Solo bozze. La simulazione è sintetica: nessun comando radio o XP. Pisa approva ogni proposta.'}};
+let draft={slug:'tuscany-adventure',kind:'side',title:{en:'Tuscany Adventure',it:'Avventura Toscana'},summary:{en:'Explore radio links in Tuscany.',it:'Esplora i collegamenti radio in Toscana.'},chapters:[{
+  slug:'chapter-one',title:{en:'First Contact',it:'Primo Contatto'},story:{en:'A lost signal reaches the gateway.',it:'Un segnale perduto raggiunge il gateway.'},missions:[{
+    slug:'find-outpost',title:{en:'Find the repeater',it:'Trova il ripetitore'},description:{en:'Discover one relay outpost.',it:'Scopri un avamposto relay.'},objective:{kind:'discover_count',unique_outposts:1},suggested_xp:20
+  }]}]};
+function el(name,cls,parent){const n=document.createElement(name);if(cls)n.className=cls;if(parent)parent.append(n);return n}
+function makeField(parent,title,value,callback,opts={}){const label=el('label','',parent);label.append(document.createTextNode(title));const node=el(opts.textarea?'textarea':'input','',label);node.value=value??'';if(opts.type)node.type=opts.type;if(opts.max)node.maxLength=opts.max;node.addEventListener('input',()=>callback(opts.type==='number'?Number(node.value):node.value));return node}
+function choice(parent,title,value,choices,callback){const label=el('label','',parent);label.append(document.createTextNode(title));const node=el('select','',label);for(const [v,t] of choices){const option=el('option','',node);option.value=v;option.textContent=t}node.value=value;node.addEventListener('change',()=>callback(node.value));return node}
+function twoFields(parent,name,value){const grid=el('div','grid',parent);makeField(grid,name+' (EN)',value.en,v=>value.en=v,{max:2000});makeField(grid,name+' (IT)',value.it,v=>value.it=v,{max:2000})}
+function addButton(parent,label,fn,style='secondary'){const b=el('button',style,parent);b.type='button';b.textContent=label;b.addEventListener('click',fn);return b}
+function renderPack(){const host=$('pack');host.replaceChildren();const grid=el('div','grid',host);
+  makeField(grid,'Pack slug',draft.slug,v=>draft.slug=v,{max:64});choice(grid,'Type',draft.kind,[['main','Main story proposal'],['side','Side quest'],['dlc','DLC / expansion']],v=>draft.kind=v);
+  twoFields(host,'Title',draft.title);twoFields(host,'Summary',draft.summary)}
+function renderChapters(){const host=$('chapters');host.replaceChildren();draft.chapters.forEach((ch,idx)=>{const box=el('div','nested',host),top=el('div','top',box),head=el('h3','',top);head.textContent='Chapter '+(idx+1);
+    addButton(top,'Remove chapter',()=>{draft.chapters.splice(idx,1);renderChapters()},'danger');makeField(box,'Chapter slug',ch.slug,v=>ch.slug=v,{max:64});twoFields(box,'Chapter title',ch.title);twoFields(box,'Story',ch.story);
+    const mh=el('div','top',box);el('h3','',mh).textContent='Missions';addButton(mh,'+ Add mission',()=>{ch.missions.push({slug:'mission-'+(ch.missions.length+1),title:{en:'New mission',it:'Nuova missione'},description:{en:'Discover a radio route.',it:'Scopri un percorso radio.'},objective:{kind:'discover_count',unique_outposts:1},suggested_xp:0});renderChapters()});
+    ch.missions.forEach((m,mi)=>{const item=el('div','nested',box),row=el('div','top',item);el('h3','',row).textContent='Mission '+(mi+1);addButton(row,'Remove mission',()=>{ch.missions.splice(mi,1);renderChapters()},'danger');
+      makeField(item,'Mission slug',m.slug,v=>m.slug=v,{max:64});twoFields(item,'Title',m.title);twoFields(item,'Description',m.description);
+      const grid=el('div','grid',item),kind=m.objective.kind;
+      choice(grid,'Objective',kind,[['discover_outpost','Discover specific outpost'],['discover_count','Discover N outposts'],['reach_gateway','Reach gateway'],['solve_riddle','Solve riddle']],v=>{m.objective={kind:v};if(v==='discover_outpost')m.objective.outpost_node_id='!11223344';if(v==='discover_count')m.objective.unique_outposts=1;if(v==='reach_gateway')m.objective.gateway_id='pisa-gw';renderChapters()});
+      if(kind==='discover_outpost')makeField(grid,'Outpost NodeID',m.objective.outpost_node_id,v=>m.objective.outpost_node_id=v);
+      if(kind==='reach_gateway')makeField(grid,'Gateway ID',m.objective.gateway_id,v=>m.objective.gateway_id=v);
+      if(kind==='discover_count')makeField(grid,'Unique outposts',m.objective.unique_outposts,v=>m.objective.unique_outposts=v,{type:'number'});
+      makeField(grid,'Suggested XP (0–50, not awarded in alpha)',m.suggested_xp,v=>m.suggested_xp=v,{type:'number'});
+    });
+  })}
+function csv(id){return $(id).value.split(',').map(s=>s.trim()).filter(Boolean)}
+function show(result){$('result').textContent=JSON.stringify(result,null,2)}
+async function request(path,payload){const token=$('token').value.trim();if(!token)throw Error('Enter your gateway token first.');const response=await fetch(path,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify(payload),cache:'no-store'});
+  let json;try{json=await response.json()}catch{throw Error('HTTP '+response.status)}if(!response.ok)throw Error('HTTP '+response.status+': '+JSON.stringify(json));return json}
+async function run(action){for(const b of document.querySelectorAll('button'))b.disabled=true;try{if(action==='validate')show(await request('/api/v1/gateway/content-packs/validate',draft));
+ else if(action==='simulate')show(await request('/api/v1/gateway/content-packs/simulate',{pack:draft,evidence:{discovered_outposts:csv('fakeOutposts'),reached_gateways:csv('fakeGateways'),solved_riddles:csv('fakeRiddles')}}));
+ else if(action==='submit')show(await request('/api/v1/gateway/content-packs',draft));
+ else if(action==='connect'){const data=await request('/api/v1/gateway/heartbeat',{agent_version:'creator-studio-0.4',transport:'test'});$('authStatus').textContent='Gateway '+data.gateway_id+' connected';}
+ }catch(error){show({error:error.message})}finally{for(const b of document.querySelectorAll('button'))b.disabled=false}}
+$('validate').onclick=()=>run('validate');$('simulate').onclick=()=>run('simulate');$('submit').onclick=()=>run('submit');$('connect').onclick=()=>run('connect');
+$('addChapter').onclick=()=>{draft.chapters.push({slug:'chapter-'+(draft.chapters.length+1),title:{en:'New chapter',it:'Nuovo capitolo'},story:{en:'A new journey begins.',it:'Inizia un nuovo viaggio.'},missions:[{slug:'new-mission',title:{en:'New mission',it:'Nuova missione'},description:{en:'Explore the network.',it:'Esplora la rete.'},objective:{kind:'discover_count',unique_outposts:1},suggested_xp:0}]});renderChapters()};
+$('export').onclick=()=>{const file=new Blob([JSON.stringify(draft,null,2)],{type:'application/json'}),url=URL.createObjectURL(file),a=document.createElement('a');a.href=url;a.download=(draft.slug||'meshquest-draft')+'.json';a.click();URL.revokeObjectURL(url)};
+$('language').onchange=()=>{const l=$('language').value;$('subtitle').textContent=txt[l].subtitle;$('warning').textContent=txt[l].warning};
+renderPack();renderChapters();
+</script></body></html>
