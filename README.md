@@ -4,12 +4,12 @@
 
 **MeshQuest is an experimental, open-source exploration/RPG project for Meshtastic networks.** Players discover *observed radio routes*, identify registered relay outposts and gain experience points (XP). The game backend runs on a central server; ordinary remote Meshtastic nodes can become outposts **without a computer, dedicated agent or MeshQuest channel**.
 
-**Project status: v0.3.0-alpha — gameplay and community-authored content API prototype. The live Meshtastic radio bridge, traceroute validation, self-service accounts and radio commands are NOT implemented yet. Do not deploy this prototype as a public game service.**
+**Project status: v0.4.0-alpha — gameplay and community-authored content API prototype. The live bidirectional Meshtastic game bridge, traceroute validation, self-service accounts and radio commands are NOT implemented yet. Do not deploy this prototype as a public game service.**
 
 ## The idea
 
 - **Players** join the MeshQuest channel using a Meshtastic device and later connect a verified NodeID to their website account.
-- **Radio gateways** located in homes or server installations communicate with the central API over HTTPS. A gateway has its own Meshtastic radio and runs a trusted software bridge (planned).
+- **Radio gateways** located in homes or server installations communicate with the central API over HTTPS using individual bearer tokens. Their lightweight agent (Python 3.9+, including 32-bit ARMv6 design target) performs no game logic. A read-only capture and heartbeat prototype is available.
 - **Outposts** are ordinary Meshtastic relay nodes registered by NodeID. They do not require the MeshQuest channel, an Internet connection or an agent.
 - **Game server** maintains approved outposts, observations, discoveries, XP and leaderboards. The primary instance is planned for Pisa, but the software is portable.
 
@@ -48,7 +48,8 @@ The API prototype accepts trusted gateway **reports** from a traceroute initiate
 | Three progress-based quests, chapters/levels, player profile API and simulated round | Implemented; no radio adapter |
 | English/Italian read-only home page, quest board, community adventures and profile viewer | Implemented |
 | Gateway-authored main-story proposals, side quests and DLC, with Pisa admin moderation | Implemented (preview only; no quest completion or DLC XP) |
-| Live Meshtastic bridge and real RF traceroute verification | Not implemented |
+| Read-only serial/TCP gateway agent, token heartbeat and metadata ingestion | Implemented; untested on physical ARMv6 |
+| Bidirectional Meshtastic game bridge and RF traceroute verification | Not implemented |
 | Website login, radio ownership verification, mission/command parser | Not implemented |
 | Autonomous local/offline play and federated servers | Not implemented |
 
@@ -94,7 +95,7 @@ Use an `X-Admin-Key` HTTP header for admin requests. Register a player, an outpo
 
 See the **[first gameplay loop](docs/GAMEPLAY.md)** ([italiano](docs/GAMEPLAY.it.md)), [API examples](docs/API.md) and [architecture/verification notes](docs/ARCHITECTURE.md).
 
-Community Game Masters can submit bilingual **main story proposals**, **side quests** and **DLC packs** with their gateway token. The central server reviews and publishes each pack. See **[Creator Studio / Content Packs](docs/CONTENT_PACKS.md)** ([italiano](docs/CONTENT_PACKS.it.md)) and the [Tuscany sample DLC](examples/tuscany-lost-signal.json). These packs are **preview-only**: posting or approving a pack grants no XP and does not execute radio commands.
+Community Game Masters can submit bilingual **main story proposals**, **side quests** and **DLC packs** with their gateway token. The central server reviews and publishes each pack. Open **`/creator`** after starting the local server ([editor source](web/creator.html)). See **[Creator Studio / Content Packs](docs/CONTENT_PACKS.md)** ([italiano](docs/CONTENT_PACKS.it.md)) and the [Tuscany sample DLC](examples/tuscany-lost-signal.json). These packs are **preview-only**: posting or approving a pack grants no XP and does not execute radio commands.
 
 ### Simulate a complete round (no radio transmissions)
 
@@ -103,6 +104,20 @@ python scripts/demo_game.py --lang en
 ```
 
 The simulation runs against the actual backend scoring code with a temporary database; all observations are deliberately fabricated test data. The game API now includes `GET /api/v1/game/rules?lang=en` and `GET /api/v1/players/{node_id}/profile?lang=en` (also `it`).
+
+
+### Raspberry Pi Zero W gateway (32-bit ARMv6)
+
+**Do not install the MeshQuest game server on the Raspberry.** It runs only `gateway_agent/agent.py`, authenticated to Pisa using a dedicated bearer token. Python 3.9+ stdlib for the agent core, with Meshtastic as an optional radio adapter. Test the radio package on the real ARMv6 device before relying on it.
+
+```bash
+python3 gateway_agent/agent.py --self-test
+# With a private mode-0600 token file and a running Pisa API:
+MESHQUEST_SERVER=https://YOUR_SERVER MESHQUEST_TOKEN_FILE=/path/to/token \
+  python3 gateway_agent/agent.py --check
+```
+
+See **[Gateway setup](docs/GATEWAY.md)** ([italiano](docs/GATEWAY.it.md)). Captured packet metadata never scores XP and the read-only agent never transmits LoRa packets.
 
 ## Contributions and multilingual docs
 

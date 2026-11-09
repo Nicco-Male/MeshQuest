@@ -74,3 +74,9 @@ La **[guida al gameplay](GAMEPLAY.it.md)** ([English](GAMEPLAY.md)) descrive reg
 I gateway MeshQuest con un computer (Raspberry, Berry, PC) possono proporre **capitoli della storia principale**, **missioni secondarie** e **DLC**. Pisa approva le proposte prima della pubblicazione. Gli avamposti relay passivi non devono installare nulla.
 
 Consulta la **[guida italiana per creare e proporre campagne](CONTENT_PACKS.it.md)** e il **[DLC di esempio](../examples/tuscany-lost-signal.json)**. Il sistema permette per ora solo anteprima e moderazione: le missioni personalizzate non assegnano ancora XP e non sono giocabili via radio.
+
+## Gateway leggero per Berry Zero W (32 bit)
+
+Il server Pisa gestisce tutto il gameplay, inclusi Creator Studio, missioni, XP e classifiche. Ogni Berry/PC collega esclusivamente una radio Meshtastic al server con un token individuale. L'agent (`gateway_agent/agent.py`) utilizza Python 3.9+ e soltanto librerie standard per HTTPS, coda SQLite e autenticazione; il pacchetto `meshtastic` è necessario solo per l'accesso radio. La compatibilità ARMv6 completa deve ancora essere verificata sul dispositivo fisico.
+
+[Guida di installazione gateway in italiano](GATEWAY.it.md) · [Creator Studio / server locale](../web/creator.html).

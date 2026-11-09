@@ -69,3 +69,15 @@ curl -fsS "$URL/api/v1/content-packs?lang=it"
 ```
 
 To reject a pending pack instead, use `POST /api/v1/admin/content-packs/{slug}/reject`. Its author can list their own status through `GET /api/v1/gateway/content-packs` with the bearer token. A pack is immutable once submitted in this prototype, and even an approved `main` proposal does **not** automatically merge into the current hard-coded core campaign. Read [Creator Studio (EN)](CONTENT_PACKS.md) or [Guida autori (IT)](CONTENT_PACKS.it.md).
+
+## Read-only gateway agent API (v0.4.0-alpha)
+
+The gateway uses an **individual Bearer token** returned by `POST /api/v1/admin/gateways`. Do not install the admin key on the Berry. A staging password (if enabled) is separate.
+
+- `POST /api/v1/gateway/heartbeat`: `{"agent_version":"0.4.0a0","transport":"serial"}` — authenticated gateway liveness.
+- `POST /api/v1/gateway/packets`: metadata-only event (`event_id`, `observation_type`, `channel_index`, optional RF metadata). The API rejects raw decoded text, MQTT-origin packets, and extra unrecognized fields. Duplicates yield no second event; **XP always stays zero**.
+- `POST /api/v1/admin/gateways/{gateway_id}/disable`: permanently revoke a gateway token until a new gateway credential is provisioned (admin only).
+- `GET /api/v1/admin/gateways/status`: restricted admin listing of gateway availability and metadata counts.
+- `/creator`: prototype browser editor for chapter/mission drafts. Requires gateway token for validation, simulation and submission; Pisa admin controls publication. Never stores the token in browser storage.
+
+For Python 3.9+ ARMv6 setup see [Gateway Guide](GATEWAY.md) / [Guida italiana](GATEWAY.it.md). Full game logic remains on Pisa; the read-only agent cannot validate traceroutes or submit XP.

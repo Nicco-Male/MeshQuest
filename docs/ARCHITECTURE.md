@@ -5,7 +5,7 @@
 ## Roles
 
 1. **Central server:** authoritative game state, PostgreSQL, public read-only leaderboard, authenticated observation API.
-2. **Radio gateway:** Meshtastic radio attached to a host, envisioned to run a future bridge that collects traceroute results and forwards them via authenticated HTTPS.
+2. **Radio gateway:** Meshtastic radio attached to a host, running the lightweight Python 3.9+ gateway agent, with a per-gateway bearer token and outbound HTTPS. Read-only metadata capture/heartbeat is implemented; future server-directed game commands and traceroute verification are not.
 3. **Outpost:** any remote registered relay node; no software, Internet or game channel required. The outpost must be identified in a traceroute to be credited.
 4. **Player:** participates via a Meshtastic radio on a dedicated MeshQuest application channel.
 
@@ -41,3 +41,9 @@ The official protocol and firmware versions must be checked against hardware dur
 ## Game Masters / community content (v0.3.0-alpha)
 
 A radio gateway with a host computer may also propose story content, without running a separate authoritative game server. It sends a validated declarative pack to the Pisa API using its **existing gateway bearer token**. Content is stored as pending; the Pisa administrator reviews and publishes it. Public readers see only published packages. `main`, `side` and `dlc` are distinct campaign categories; gateway users cannot directly change the canonical narrative or the scoreboard. No custom script execution is permitted. Mission completion and XP award integration are still future work. See [Creator Studio](CONTENT_PACKS.md) / [Italiano](CONTENT_PACKS.it.md).
+
+## Centralized authority and 32-bit gateway support
+
+Pisa alone stores game rules, content packs, missions, player progress, XP and leaderboards. A Berry Zero W (ARMv6, 32 bit) does not run the backend, Creator Studio, or PostgreSQL. It stores only an individually revocable gateway credential and a bounded SQLite metadata queue. Unknown or unregistered relay outposts do not need a computer or a MeshQuest channel.
+
+Read-only gateway agent: [`../gateway_agent/agent.py`](../gateway_agent/agent.py). Setup: [EN](GATEWAY.md) · [IT](GATEWAY.it.md). Meshtastic and its transitive dependencies must still be tested on physical ARMv6 hardware.
