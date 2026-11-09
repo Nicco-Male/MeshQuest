@@ -1,0 +1,27 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: meshquest
+      POSTGRES_DB: meshquest
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U meshquest -d meshquest"]
+      interval: 5s
+      retries: 10
+  api:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:8765:8000"
+    environment:
+      MESHQUEST_DATABASE_URL: postgresql+psycopg://meshquest:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@db:5432/meshquest
+      MESHQUEST_ADMIN_KEY: ${MESHQUEST_ADMIN_KEY:?Set MESHQUEST_ADMIN_KEY in .env}
+volumes:
+  pgdata:
