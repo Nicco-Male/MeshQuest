@@ -53,6 +53,20 @@ The API prototype accepts trusted gateway **reports** from a traceroute initiate
 | Website login, radio ownership verification, mission/command parser | Not implemented |
 | Autonomous local/offline play and federated servers | Not implemented |
 
+## Salvo: Node Conquest (proposed proof of concept)
+
+The optional **Salvo** module adds an **admin-only gameplay simulation**: a
+server-side game catalog (`GET /api/v1/games`, gateway-scoped catalog with
+bearer auth), explicitly configured fictional adjacency, arithmetic node
+puzzles, virtual capture and accruing game credits. `!listgame`,
+`!join salvo`, `!scan`, `!hack` and `!status` are interpreted through a
+protected HTTP simulation endpoint, **not through Meshtastic radio**.
+Salvo balances do not affect exploration XP. A radio command adapter and
+public player authentication are still missing.
+
+See [Salvo pilot guide](docs/SALVO_POC.md). The PoC is suitable for local
+API tests only, not public gameplay.
+
 ## Cloud staging (optional)
 
 A password-protected **Render + Neon** blueprint is available for API/UI testing without a home-server LXC. **No cloud service is deployed automatically by this repository.** GitHub Pages and Actions alone cannot host the persistent game API. See [cloud staging instructions](docs/HOSTING.md) ([italiano](docs/HOSTING.it.md)). The free Render instance sleeps when idle and the alpha is **not** ready for public gameplay.
