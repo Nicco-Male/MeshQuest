@@ -117,3 +117,11 @@ def test_staging_refuses_to_boot_without_password(tmp_path, monkeypatch):
     monkeypatch.delenv("MESHQUEST_STAGING_PASSWORD", raising=False)
     with pytest.raises(RuntimeError, match="MESHQUEST_STAGING_PASSWORD"):
         create_app(f"sqlite:///{tmp_path / 'missing.db'}", "test-admin-key")
+
+
+def test_staging_requires_external_postgres(tmp_path, monkeypatch):
+    import pytest
+    monkeypatch.setenv("MESHQUEST_REQUIRE_STAGING_PASSWORD", "1")
+    monkeypatch.setenv("MESHQUEST_STAGING_PASSWORD", "staging-test-secret")
+    with pytest.raises(RuntimeError, match="PostgreSQL is required"):
+        create_app(f"sqlite:///{tmp_path / 'missing.db'}", "test-admin-key")
