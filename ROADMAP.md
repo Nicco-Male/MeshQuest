@@ -1,5 +1,20 @@
 # Roadmap
 
+## Multi-game Engine / Game Discovery (proposed — not implemented)
+
+- [x] Architecture, radio event contract, public API/SDK, Game Discovery, Mesh Dominion and migration specifications documented
+- [ ] Freeze and test legacy API/gateway compatibility; add additive Alembic database migrations
+- [ ] Extract Core event log, registry, game sessions, scoped authorization and durable delivery
+- [ ] Convert current route-explorer game into isolated built-in game, add a second simulated game
+- [ ] Implement external Game API, signed webhooks, OpenAPI and Python/TypeScript SDKs
+- [ ] Add safe radio discovery (!servers, !games, !info, !join) with per-gateway exposure, short paginated responses and rate limits
+- [ ] Add capability-negotiated optional radio TX scheduler; maintain v0.4 metadata-only read-only Berry compatibility
+- [ ] Hardware-test ARMv6 Raspberry Pi Zero W 32-bit gateway and verify Serial/TCP/Meshtastic dependencies
+- [ ] First Pisa playtest: 3 testers, ~12 virtual territories, 3 puzzle classes and consenting radio gateways
+- [ ] Only later: independently hosted/federated MeshQuest server discovery and community game publishing
+
+Links: [Italian overview](docs/MULTIGAME_OVERVIEW.it.md) · [Core architecture](docs/MULTIGAME_ENGINE.md) · [Discovery](docs/GAME_DISCOVERY.md) · [SDK](docs/GAME_API_SDK.md) · [Mesh Dominion](docs/GAMES/MESH_DOMINION.md) · [Migration](docs/MULTIGAME_MIGRATION.md).
+
 - [x] Basic data model, API and English/Italian read-only dashboard
 - [x] Approved outposts, gateway tokens and manual route observation deduplication
 - [x] Lifetime and monthly leaderboard, first-route discovery XP

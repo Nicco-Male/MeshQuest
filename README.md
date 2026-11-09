@@ -6,6 +6,19 @@
 
 **Project status: v0.4.0-alpha — gameplay and community-authored content API prototype. The live bidirectional Meshtastic game bridge, traceroute validation, self-service accounts and radio commands are NOT implemented yet. Do not deploy this prototype as a public game service.**
 
+## Multi-game platform direction (design; not yet shipped)
+
+MeshQuest is being designed as a **multi-game Meshtastic platform**: a shared Core Engine for identity, radio events, sessions and permissions, supporting both centrally hosted and external games via public APIs/SDKs. Radio Game Discovery would let a player ask **!servers** and **!games** on an opt-in MeshQuest channel to see responding instances and their exposed games. **Mesh Dominion** (community concept by Salvo) is a proposed virtual territory-control game with simulated hacking puzzles; no real nodes are compromised.
+
+**These features are planned, not implemented in the current v0.4.0-alpha prototype.** The existing gateway is still read-only, and the Python 3.9+/32-bit ARMv6 target has not yet been verified on actual hardware.
+
+- [Panoramica italiana del progetto multi-game](docs/MULTIGAME_OVERVIEW.it.md)
+- [Engine architecture and event contract](docs/MULTIGAME_ENGINE.md)
+- [Radio discovery: !servers / !games / !join](docs/GAME_DISCOVERY.md)
+- [Public API and SDK design](docs/GAME_API_SDK.md)
+- [Mesh Dominion gameplay design](docs/GAMES/MESH_DOMINION.md)
+- [Incremental migration and gateway compatibility](docs/MULTIGAME_MIGRATION.md)
+
 ## The idea
 
 - **Players** join the MeshQuest channel using a Meshtastic device and later connect a verified NodeID to their website account.
