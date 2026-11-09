@@ -4,4 +4,4 @@ COPY pyproject.toml README.md ./
 COPY meshquest ./meshquest
 RUN pip install --no-cache-dir ".[mqtt]" && useradd -r -u 10001 meshquest
 USER meshquest
-CMD ["python", "-m", "meshquest.transports.mqtt"]
+ENTRYPOINT ["python", "-m", "meshquest.transports.mqtt"]
