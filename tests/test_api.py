@@ -104,7 +104,7 @@ def test_staging_requires_credentials_and_preserves_bearer_auth(tmp_path, monkey
         assert client.get("/").status_code == 401
         assert client.get("/api/v1/leaderboard").status_code == 401
         basic = base64.b64encode(b"meshquest:staging-test-secret").decode()
-        assert client.get("/", headers={"authorization": "Basic " + basic}).status_code == 200
+        assert client.get("/docs", headers={"authorization": "Basic " + basic}).status_code == 200
         assert client.get("/api/v1/leaderboard", headers={"x-meshquest-staging-password": "staging-test-secret"}).status_code == 200
         assert client.get("/", headers={"x-meshquest-staging-password": "wrong"}).status_code == 401
         headers = {"x-meshquest-staging-password": "staging-test-secret", **ADMIN}
