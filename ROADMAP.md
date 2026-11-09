@@ -6,7 +6,8 @@
 - [ ] Radio gateway adapter: live serial/TCP Meshtastic events with rate limits
 - [ ] Real traceroute parsing and comparison against RF fixtures
 - [ ] Website accounts, NodeID challenge verification and outpost self-service
-- [ ] Game channel text command parser and mission state machine
+- [x] First derived game progression: three missions, narrative chapters, levels, read-only profile UI and synthetic demo
+- [ ] Game channel text command parser and interactive radio mission state machine
 - [ ] Website UX, map, moderation, gateway revocation and hardening
 - [ ] Multi-gateway matching, seasons, narrative chapters and gameplay balancing
 

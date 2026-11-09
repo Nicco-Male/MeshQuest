@@ -15,6 +15,7 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 
 from .db import Discovery, Gateway, Observation, Outpost, Player, make_session_factory
+from .game import game_rules, player_profile
 from .schemas import GatewayIn, OutpostIn, PlayerIn, RouteIn, normalize
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -28,7 +29,7 @@ def create_app(database_url: str | None = None, admin_key: str | None = None) ->
     database_url = database_url or os.getenv("MESHQUEST_DATABASE_URL", "sqlite:///./meshquest.db")
     admin_key = admin_key if admin_key is not None else os.getenv("MESHQUEST_ADMIN_KEY", "")
     SessionLocal = make_session_factory(database_url)
-    app = FastAPI(title="MeshQuest", version="0.1.0-alpha", description="Experimental route-observation game API")
+    app = FastAPI(title="MeshQuest", version="0.2.0-alpha", description="Experimental route-observation game API")
 
     def session_dep():
         with SessionLocal() as session:
@@ -59,7 +60,7 @@ def create_app(database_url: str | None = None, admin_key: str | None = None) ->
 
     @app.get("/health")
     def health():
-        return {"status": "ok", "version": "0.1.0-alpha"}
+        return {"status": "ok", "version": "0.2.0-alpha"}
 
     @app.post("/api/v1/admin/players", dependencies=[Depends(require_admin)], status_code=201)
     def add_player(data: PlayerIn, db=Depends(session_dep)):
@@ -109,9 +110,27 @@ def create_app(database_url: str | None = None, admin_key: str | None = None) ->
         outposts = db.scalars(select(Outpost).where(Outpost.approved.is_(True)).order_by(Outpost.name)).all()
         return [{"node_id": o.node_id, "name": o.name, "approved": o.approved} for o in outposts]
 
+    @app.get("/api/v1/game/rules")
+    def get_game_rules(lang: str = Query(default="en", pattern=r"^(en|it)$")):
+        return game_rules(lang)
+
     @app.get("/api/v1/quests")
-    def list_quests():
-        return [{"id": "first-route", "title": "First Echo", "description": "Discover an approved outpost on a gateway-to-player traceroute return path.", "xp_per_unique_outpost": 50}]
+    def list_quests(lang: str = Query(default="en", pattern=r"^(en|it)$")):
+        return game_rules(lang)["missions"]
+
+    @app.get("/api/v1/players/{node_id}/profile")
+    def get_player_profile(node_id: str, lang: str = Query(default="en", pattern=r"^(en|it)$"), db=Depends(session_dep)):
+        player = db.scalar(select(Player).where(Player.node_id == normalize(node_id)))
+        if player is None:
+            raise HTTPException(404, "Unknown player")
+        discoveries = db.execute(
+            select(Discovery, Outpost).join(Outpost, Outpost.id == Discovery.outpost_id)
+            .where(Discovery.player_id == player.id).order_by(Discovery.earned_at, Discovery.id)
+        ).all()
+        found = [{"node_id": outpost.node_id, "name": outpost.name, "xp": discovery.xp,
+                  "discovered_at": discovery.earned_at.isoformat()}
+                 for discovery, outpost in discoveries]
+        return player_profile(player.node_id, player.nickname, found, lang)
 
     @app.post("/api/v1/observations")
     def ingest_route(event: RouteIn, gateway: Gateway = Depends(current_gateway), db=Depends(session_dep)):

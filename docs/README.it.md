@@ -4,7 +4,7 @@
 
 **MeshQuest** è un progetto open source sperimentale che unisce esplorazione radio Meshtastic e meccaniche RPG. La base implementata comprende API, database, registrazione amministrativa dei nodi, osservazioni dei percorsi, punti esperienza e classifica.
 
-**Stato: v0.1.0-alpha.** La connessione radio Meshtastic reale, i traceroute automatici, l'autenticazione degli utenti sul sito e i comandi radio **non sono ancora implementati**. Non pubblicare questa versione su Internet come servizio di gioco.
+**Stato: v0.2.0-alpha.** La connessione radio Meshtastic reale, i traceroute automatici, l'autenticazione degli utenti sul sito e i comandi radio **non sono ancora implementati**. Non pubblicare questa versione su Internet come servizio di gioco.
 
 ## Architettura
 
@@ -48,6 +48,7 @@ Per Docker Compose: copia `.env.example` in `.env`, cambia **entrambe** le passw
 | Approvazione avamposti e deduplicazione eventi | Implementata |
 | XP per avamposti unici, classifica totale/mensile | Implementata |
 | Homepage in inglese e italiano | Implementata |
+| Missioni progressive, livelli, capitoli e profilo giocatore | Implementati in modalità simulata |
 | Traceroute radio, comandi `!quest`/`!checkin`, verifica proprietà NodeID | Da sviluppare |
 | Account utente pubblici e registrazione autonoma avamposti | Da sviluppare |
 
@@ -56,3 +57,13 @@ Le chiamate di esempio alle API utilizzano **osservazioni simulate**, non prove 
 Ulteriori dettagli: [API](API.md) · [Architettura](ARCHITECTURE.md) · [Traduzioni](TRANSLATIONS.md).
 
 **Licenza:** MIT. Progetto indipendente e non affiliato a Meshtastic.
+
+## Prima partita simulata
+
+Per provare tre missioni e lo sblocco dei capitoli usando il vero backend, senza trasmissioni radio:
+
+```bash
+python scripts/demo_game.py --lang it
+```
+
+La **[guida al gameplay](GAMEPLAY.it.md)** ([English](GAMEPLAY.md)) descrive regole, comandi previsti e limiti dei traceroute.

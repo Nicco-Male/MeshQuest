@@ -34,3 +34,13 @@ curl -fsS "$URL/api/v1/leaderboard"
 ```
 
 The ingestion endpoint only verifies **that an authenticated gateway attested** to a traceroute-shaped result. `source="rf_traceroute"` is a claim by that gateway; the API does not independently validate RF hardware. A real gateway adapter and additional proof checks remain future work.
+
+## Read-only game progression (v0.2.0-alpha)
+
+`GET /api/v1/game/rules?lang=en` (or `lang=it`) returns mission definitions, narrative chapters, level thresholds and proof limitations.
+
+`GET /api/v1/quests?lang=it` returns the localized mission board.
+
+`GET /api/v1/players/{node_id}/profile?lang=it` returns a registered player's unique discovered outposts, level, quest progress and unlocked chapters. These endpoints **never award XP or emit radio traffic**. Live RF evidence collection and self-registration are not implemented.
+
+Run `python scripts/demo_game.py --lang it` after installing `.[test]` to exercise an entire **synthetic** three-observation round.

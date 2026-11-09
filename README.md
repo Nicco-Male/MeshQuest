@@ -4,7 +4,7 @@
 
 **MeshQuest is an experimental, open-source exploration/RPG project for Meshtastic networks.** Players discover *observed radio routes*, identify registered relay outposts and gain experience points (XP). The game backend runs on a central server; ordinary remote Meshtastic nodes can become outposts **without a computer, dedicated agent or MeshQuest channel**.
 
-**Project status: v0.1.0-alpha — API and leaderboard prototype. The live Meshtastic radio bridge, traceroute validation, self-service accounts and radio commands are NOT implemented yet. Do not deploy this prototype as a public game service.**
+**Project status: v0.2.0-alpha — API, gameplay progression and leaderboard prototype. The live Meshtastic radio bridge, traceroute validation, self-service accounts and radio commands are NOT implemented yet. Do not deploy this prototype as a public game service.**
 
 ## The idea
 
@@ -45,7 +45,8 @@ The API prototype accepts trusted gateway **reports** from a traceroute initiate
 | Manual outpost approval | Implemented |
 | Authenticated gateway observation ingestion and deduplication | Implemented; no live RF adapter |
 | Unique-outpost XP and lifetime/monthly leaderboard | Implemented |
-| English/Italian read-only home page | Implemented |
+| Three progress-based quests, chapters/levels, player profile API and simulated round | Implemented; no radio adapter |
+| English/Italian read-only home page, quest board and profile viewer | Implemented |
 | Live Meshtastic bridge and real RF traceroute verification | Not implemented |
 | Website login, radio ownership verification, mission/command parser | Not implemented |
 | Autonomous local/offline play and federated servers | Not implemented |
@@ -86,7 +87,15 @@ The API binds to `127.0.0.1:8765` by default. Do **not** expose it publicly befo
 
 Use an `X-Admin-Key` HTTP header for admin requests. Register a player, an outpost, approve the outpost and register a gateway using `POST /api/v1/admin/...`. Gateway creation returns a bearer token **once**. Submit `POST /api/v1/observations` with `Authorization: Bearer <gateway-token>`. Test calls report **simulated evidence** and must never be represented as live RF validations.
 
-See [API examples](docs/API.md) and [architecture/verification notes](docs/ARCHITECTURE.md).
+See the **[first gameplay loop](docs/GAMEPLAY.md)** ([italiano](docs/GAMEPLAY.it.md)), [API examples](docs/API.md) and [architecture/verification notes](docs/ARCHITECTURE.md).
+
+### Simulate a complete round (no radio transmissions)
+
+```bash
+python scripts/demo_game.py --lang en
+```
+
+The simulation runs against the actual backend scoring code with a temporary database; all observations are deliberately fabricated test data. The game API now includes `GET /api/v1/game/rules?lang=en` and `GET /api/v1/players/{node_id}/profile?lang=en` (also `it`).
 
 ## Contributions and multilingual docs
 
