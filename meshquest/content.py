@@ -114,3 +114,38 @@ def public_pack(record, lang: Literal["en", "it"] = "en") -> dict:
         "playable": False,
         "note": "Published narrative preview only: radio quest validation and reward payouts are not implemented.",
     }
+
+
+class SimulationEvidenceIn(ContentModel):
+    """Synthetic, declarative inputs to preview objectives; never radio evidence."""
+    discovered_outposts: list[NodeID] = Field(default_factory=list, max_length=50)
+    reached_gateways: list[GatewaySlug] = Field(default_factory=list, max_length=50)
+    solved_riddles: list[Slug] = Field(default_factory=list, max_length=50)
+
+
+class ContentSimulationIn(ContentModel):
+    pack: ContentPackIn
+    evidence: SimulationEvidenceIn
+
+
+def simulate_pack(pack: ContentPackIn, evidence: SimulationEvidenceIn) -> dict:
+    """Evaluate a draft against hypothetical facts without persistence or XP."""
+    outposts = {node.lower() for node in evidence.discovered_outposts}
+    gateways = set(evidence.reached_gateways)
+    riddles = set(evidence.solved_riddles)
+    result = []
+    for chapter in pack.chapters:
+        missions = []
+        for mission in chapter.missions:
+            objective = mission.objective
+            completed = {
+                "reach_gateway": lambda: objective.gateway_id in gateways,
+                "discover_outpost": lambda: objective.outpost_node_id.lower() in outposts,
+                "discover_count": lambda: len(outposts) >= objective.unique_outposts,
+                "solve_riddle": lambda: mission.slug in riddles,
+            }[objective.kind]()
+            missions.append({"slug": mission.slug, "completed": completed,
+                             "suggested_xp": mission.suggested_xp, "awarded_xp": 0})
+        result.append({"slug": chapter.slug, "missions": missions})
+    return {"slug": pack.slug, "simulated": True, "persisted": False,
+            "radio_verified": False, "awarded_xp": 0, "chapters": result}
