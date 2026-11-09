@@ -97,7 +97,7 @@ def test_outgoing_route_not_credited_and_pending_hidden(tmp_path):
 
 def test_staging_requires_credentials_and_preserves_bearer_auth(tmp_path, monkeypatch):
     import base64
-    monkeypatch.setenv("MESHQUEST_REQUIRE_STAGING_PASSWORD", "1")
+    monkeypatch.delenv("MESHQUEST_REQUIRE_STAGING_PASSWORD", raising=False)
     monkeypatch.setenv("MESHQUEST_STAGING_PASSWORD", "staging-test-secret")
     with make_client(tmp_path) as client:
         assert client.get("/health").status_code == 200
