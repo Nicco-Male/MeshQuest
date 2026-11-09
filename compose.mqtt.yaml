@@ -1,0 +1,19 @@
+# Optional passive observer: no changes to the existing API or database services.
+# Use with: docker compose -f compose.yaml -f compose.mqtt.yaml up -d --build mqtt-observer
+services:
+  mqtt-observer:
+    build:
+      context: .
+      dockerfile: Dockerfile.mqtt
+    restart: unless-stopped
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      MESHQUEST_MQTT_HOST: ${MESHQUEST_MQTT_HOST:-}
+      MESHQUEST_MQTT_PORT: ${MESHQUEST_MQTT_PORT:-1883}
+      MESHQUEST_MQTT_USERNAME: ${MESHQUEST_MQTT_USERNAME:-}
+      MESHQUEST_MQTT_PASSWORD: ${MESHQUEST_MQTT_PASSWORD:-}
+      MESHQUEST_MQTT_TOPIC: ${MESHQUEST_MQTT_TOPIC:-msh/EU_868/1/json/#}
