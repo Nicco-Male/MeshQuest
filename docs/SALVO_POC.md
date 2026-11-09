@@ -81,6 +81,37 @@ To form a chain, approve and add another outpost, then POST
 
 Run the automated PoC tests with `pytest -q tests/test_salvo.py`.
 
+## Physical nodes: primary vs secondary (design decision, NOT implemented)
+
+A player's **primary NodeID** (e.g. F) is the identity used for play and must be
+associated with a website account through a future ownership verification
+flow. Additional registered **secondary real radios** (e.g. B/C) are not passive
+point generators. Physical node uptime or an MQTT NodeInfo message **alone
+must award zero network XP**.
+
+Proposed meaningful, bounded contribution events:
+- A secondary is **explicitly identified** as an intermediate hop in a
+  trustworthy, fresh radio traceroute observation between unrelated participants.
+  It establishes an observation for that probe, **not** proof that it forwarded
+  arbitrary prior messages; identity and gateway integrity remain limitations.
+- An independent player completes a game mission tied to that secondary
+  outpost, as verified by the central engine (requires future live RF bridge).
+- A node helps verify newly reachable network coverage, with separate
+  independent observations and moderation; simple geographic coordinates
+  or MQTT sightings alone do not earn credit.
+
+Do not reward self-pings, total message volume, device count, routine beaconing
+or high-frequency traceroutes. Deduplicate events, impose per-day caps and
+cooldowns, apply anti-collusion rules and minimize additional LoRa airtime.
+Normal packets do not reliably list every relay: radio observations and
+optional self-reported telemetry require a conservative trust model.
+
+**Economy separation:** contribution-based *Network XP* is distinct from
+*Salvo virtual credits*. The current simulated virtual-node minute-based
+credit accrual remains a provisional Salvo mechanic, not a reward for
+physical secondary nodes. Its continuation and conversion rules are pending
+playtesting. No Proof-of-Use endpoint or node-account pairing exists yet.
+
 ## API boundaries and next decisions
 
 `GET /api/v1/games` lists server games. `GET /api/v1/gateway/games` requires the
