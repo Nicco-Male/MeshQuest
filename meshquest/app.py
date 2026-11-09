@@ -1,6 +1,8 @@
 """MeshQuest minimal API. Not ready for public-facing deployment without additional auth hardening."""
 from __future__ import annotations
 
+import base64
+import binascii
 import hashlib
 import hmac
 import json
@@ -9,7 +11,8 @@ import secrets
 from datetime import datetime, timezone
 from pathlib import Path
 
-from fastapi import Depends, FastAPI, Header, HTTPException, Query, status
+from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, status
+from fastapi.responses import PlainTextResponse
 from fastapi.responses import FileResponse
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
@@ -28,8 +31,34 @@ def sha256(secret: str) -> str:
 def create_app(database_url: str | None = None, admin_key: str | None = None) -> FastAPI:
     database_url = database_url or os.getenv("MESHQUEST_DATABASE_URL", "sqlite:///./meshquest.db")
     admin_key = admin_key if admin_key is not None else os.getenv("MESHQUEST_ADMIN_KEY", "")
+    # Render/cloud staging is private by default. The normal local development flow is unchanged.
+    staging_password = os.getenv("MESHQUEST_STAGING_PASSWORD", "")
+    if os.getenv("MESHQUEST_REQUIRE_STAGING_PASSWORD") == "1" and not staging_password:
+        raise RuntimeError("MESHQUEST_STAGING_PASSWORD is required for cloud staging")
     SessionLocal = make_session_factory(database_url)
     app = FastAPI(title="MeshQuest", version="0.2.0-alpha", description="Experimental route-observation game API")
+
+    @app.middleware("http")
+    async def cloud_staging_guard(request: Request, call_next):
+        if not staging_password or request.url.path == "/health":
+            return await call_next(request)
+        supplied = request.headers.get("x-meshquest-staging-password", "")
+        auth = request.headers.get("authorization", "")
+        if not supplied and auth.startswith("Basic "):
+            try:
+                userpass = base64.b64decode(auth[6:], validate=True).decode("utf-8")
+                username, separator, password = userpass.partition(":")
+                if separator and username == "meshquest":
+                    supplied = password
+            except (ValueError, UnicodeError, binascii.Error):
+                pass
+        if not hmac.compare_digest(supplied, staging_password):
+            return PlainTextResponse(
+                "MeshQuest staging: authentication required",
+                status_code=401,
+                headers={"WWW-Authenticate": 'Basic realm="MeshQuest staging"'},
+            )
+        return await call_next(request)
 
     def session_dep():
         with SessionLocal() as session:
