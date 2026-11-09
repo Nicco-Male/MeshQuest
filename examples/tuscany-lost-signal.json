@@ -1,0 +1,54 @@
+{
+  "slug": "tuscany-lost-signal",
+  "kind": "dlc",
+  "title": {
+    "en": "The Lost Signal of Tuscany",
+    "it": "Il Segnale Perduto della Toscana"
+  },
+  "summary": {
+    "en": "Follow the silent relays and reconnect two distant gateways.",
+    "it": "Segui i relay silenziosi e ricollega due gateway lontani."
+  },
+  "chapters": [
+    {
+      "slug": "first-echo",
+      "title": {"en": "Chapter I: The First Echo", "it": "Capitolo I: Il Primo Eco"},
+      "story": {
+        "en": "An old relay calls from the hills. The message is incomplete.",
+        "it": "Un vecchio ripetitore chiama dalle colline. Il messaggio è incompleto."
+      },
+      "missions": [
+        {
+          "slug": "discover-poggi",
+          "title": {"en": "Discover the Hill", "it": "Scopri la Collina"},
+          "description": {
+            "en": "Identify the Poggi relay on a validated return traceroute.",
+            "it": "Identifica il relay Poggi in un traceroute di ritorno verificato."
+          },
+          "objective": {"kind": "discover_outpost", "outpost_node_id": "!186fa234"},
+          "suggested_xp": 25
+        },
+        {
+          "slug": "reach-pisa",
+          "title": {"en": "Call Pisa", "it": "Chiama Pisa"},
+          "description": {
+            "en": "Make RF contact with the Pisa gateway.",
+            "it": "Stabilisci un contatto radio con il gateway Pisa."
+          },
+          "objective": {"kind": "reach_gateway", "gateway_id": "pisa-gw"},
+          "suggested_xp": 20
+        },
+        {
+          "slug": "decode-the-echo",
+          "title": {"en": "Decode the Echo", "it": "Decifra l'Eco"},
+          "description": {
+            "en": "Solve the riddle from the recovered message (manual game master validation planned).",
+            "it": "Risolvi l'enigma del messaggio recuperato (validazione del game master prevista)."
+          },
+          "objective": {"kind": "solve_riddle"},
+          "suggested_xp": 10
+        }
+      ]
+    }
+  ]
+}

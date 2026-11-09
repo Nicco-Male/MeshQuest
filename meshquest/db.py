@@ -67,6 +67,20 @@ class Discovery(Base):
     earned_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
+class ContentPack(Base):
+    """Immutable community submission (new versions require a new submission)."""
+    __tablename__ = "content_packs"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    slug: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    author_gateway_id: Mapped[str] = mapped_column(String(40), index=True)
+    kind: Mapped[str] = mapped_column(String(8))
+    status: Mapped[str] = mapped_column(String(16), default="pending")
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    content_json: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
 def make_session_factory(database_url: str):
     opts = {"connect_args": {"check_same_thread": False}} if database_url.startswith("sqlite:") else {}
     engine = create_engine(database_url, pool_pre_ping=True, **opts)

@@ -67,3 +67,10 @@ python scripts/demo_game.py --lang it
 ```
 
 La **[guida al gameplay](GAMEPLAY.it.md)** ([English](GAMEPLAY.md)) descrive regole, comandi previsti e limiti dei traceroute.
+
+
+## Avventure create dalla comunità (v0.3.0-alpha)
+
+I gateway MeshQuest con un computer (Raspberry, Berry, PC) possono proporre **capitoli della storia principale**, **missioni secondarie** e **DLC**. Pisa approva le proposte prima della pubblicazione. Gli avamposti relay passivi non devono installare nulla.
+
+Consulta la **[guida italiana per creare e proporre campagne](CONTENT_PACKS.it.md)** e il **[DLC di esempio](../examples/tuscany-lost-signal.json)**. Il sistema permette per ora solo anteprima e moderazione: le missioni personalizzate non assegnano ancora XP e non sono giocabili via radio.

@@ -24,35 +24,47 @@
 <body>
 <header><h1><span class="brand">Mesh</span>Quest</h1><label><span id="langlabel">Language</span> <select id="language" aria-label="Language"><option value="en">English</option><option value="it">Italiano</option></select></label></header>
 <main>
-  <section class="hero"><span class="status">ALPHA · 0.2 · RF BRIDGE NOT CONNECTED</span><h2 id="headline">Explore the invisible paths of the mesh.</h2><p id="subtitle">Earn XP from identified radio relays, discover the Lost Archive and follow your progress. This prototype shows simulated-capable game rules; live LoRa gameplay is not yet available.</p></section>
+  <section class="hero"><span class="status">ALPHA · 0.3 · RF BRIDGE NOT CONNECTED</span><h2 id="headline">Explore the invisible paths of the mesh.</h2><p id="subtitle">Earn XP from identified radio relays, discover the Lost Archive and follow your progress. This prototype shows simulated-capable game rules; live LoRa gameplay is not yet available.</p></section>
   <div class="grid">
     <section class="panel"><h3 id="leaderstitle">Leaderboard</h3><table><thead><tr><th>#</th><th id="playerlabel">Player</th><th>XP</th></tr></thead><tbody id="leaders"><tr><td colspan="3">Loading...</td></tr></tbody></table></section>
     <section class="panel"><h3 id="outpoststitle">Registered outposts</h3><div id="outposts">Loading...</div></section>
     <section class="panel"><h3 id="missionstitle">Mission board</h3><div id="missions">Loading...</div></section>
+    <section class="panel"><h3 id="adventurestitle">Community adventures</h3><div id="adventures">Loading...</div></section>
     <section class="panel"><h3 id="profiletitle">Player progress</h3><label id="selectplayerlabel" for="playerSelect">View player</label><select id="playerSelect"><option value="">—</option></select><div id="profile" aria-live="polite"><p>No players yet.</p></div></section>
   </div>
   <p class="small" id="disclaimer">Only approved, identified relays on an attested traceroute return path can earn points. Unknown hops are not attributed to specific outposts. A traceroute does not prove the route of an earlier game message.</p>
-  <p class="small"><a id="gameplayLink" href="https://github.com/Nicco-Male/MeshQuest/blob/main/docs/GAMEPLAY.md">Gameplay guide</a> · <a href="https://github.com/Nicco-Male/MeshQuest">GitHub</a></p>
+  <p class="small"><a id="gameplayLink" href="https://github.com/Nicco-Male/MeshQuest/blob/main/docs/GAMEPLAY.md">Gameplay guide</a> · <a id="contentGuide" href="https://github.com/Nicco-Male/MeshQuest/blob/main/docs/CONTENT_PACKS.md">Creator guide</a> · <a href="https://github.com/Nicco-Male/MeshQuest">GitHub</a></p>
 </main>
 <footer>MeshQuest is an independent community project, not affiliated with Meshtastic. · <a href="/docs">OpenAPI / API docs</a></footer>
 <script>
 const strings={
- en:{langlabel:'Language',headline:'Explore the invisible paths of the mesh.',subtitle:'Earn XP from identified radio relays, discover the Lost Archive and follow your progress. This prototype shows simulated-capable game rules; live LoRa gameplay is not yet available.',leaderstitle:'Leaderboard',playerlabel:'Player',outpoststitle:'Registered outposts',missionstitle:'Mission board',profiletitle:'Player progress',selectplayerlabel:'View player',disclaimer:'Only approved, identified relays on an attested traceroute return path can earn points. Unknown hops are not attributed to specific outposts. A traceroute does not prove the route of an earlier game message.',none:'No entries yet',approved:'Approved',failed:'Could not load data',complete:'Completed',outpostsLabel:'unique outposts',level:'Level',discovered:'Discovered',choose:'Select a player',gameplayLink:'Gameplay guide'},
- it:{langlabel:'Lingua',headline:'Esplora i percorsi invisibili della rete mesh.',subtitle:'Guadagna XP dai relay radio identificati, scopri l’Archivio Perduto e segui i progressi. Questo prototipo contiene regole di gioco simulabili; la partita LoRa reale non è ancora disponibile.',leaderstitle:'Classifica',playerlabel:'Giocatore',outpoststitle:'Avamposti registrati',missionstitle:'Missioni',profiletitle:'Progressi giocatore',selectplayerlabel:'Visualizza giocatore',disclaimer:'Solo i relay approvati e identificati nel ritorno di un traceroute attestato danno punti. Gli hop sconosciuti non sono associati a specifici avamposti. Il traceroute non prova il percorso esatto di un messaggio precedente.',none:'Nessun dato',approved:'Approvato',failed:'Caricamento non riuscito',complete:'Completata',outpostsLabel:'avamposti unici',level:'Livello',discovered:'Scoperti',choose:'Seleziona giocatore',gameplayLink:'Guida al gioco'}
+ en:{langlabel:'Language',headline:'Explore the invisible paths of the mesh.',subtitle:'Earn XP from identified radio relays, discover the Lost Archive and follow your progress. This prototype shows simulated-capable game rules; live LoRa gameplay is not yet available.',leaderstitle:'Leaderboard',playerlabel:'Player',outpoststitle:'Registered outposts',missionstitle:'Mission board',profiletitle:'Player progress',selectplayerlabel:'View player',disclaimer:'Only approved, identified relays on an attested traceroute return path can earn points. Unknown hops are not attributed to specific outposts. A traceroute does not prove the route of an earlier game message.',none:'No entries yet',approved:'Approved',failed:'Could not load data',complete:'Completed',outpostsLabel:'unique outposts',level:'Level',discovered:'Discovered',choose:'Select a player',gameplayLink:'Gameplay guide',adventurestitle:'Community adventures',adventuresNone:'No published adventures yet',packPreview:'Preview · not playable yet',packChapter:'chapters',contentGuide:'Creator guide'},
+ it:{langlabel:'Lingua',headline:'Esplora i percorsi invisibili della rete mesh.',subtitle:'Guadagna XP dai relay radio identificati, scopri l’Archivio Perduto e segui i progressi. Questo prototipo contiene regole di gioco simulabili; la partita LoRa reale non è ancora disponibile.',leaderstitle:'Classifica',playerlabel:'Giocatore',outpoststitle:'Avamposti registrati',missionstitle:'Missioni',profiletitle:'Progressi giocatore',selectplayerlabel:'Visualizza giocatore',disclaimer:'Solo i relay approvati e identificati nel ritorno di un traceroute attestato danno punti. Gli hop sconosciuti non sono associati a specifici avamposti. Il traceroute non prova il percorso esatto di un messaggio precedente.',none:'Nessun dato',approved:'Approvato',failed:'Caricamento non riuscito',complete:'Completata',outpostsLabel:'avamposti unici',level:'Livello',discovered:'Scoperti',choose:'Seleziona giocatore',gameplayLink:'Guida al gioco',adventurestitle:'Avventure della comunità',adventuresNone:'Nessuna avventura pubblicata',packPreview:'Anteprima · non ancora giocabile',packChapter:'capitoli',contentGuide:'Guida per autori'}
 };
-let players=[],outposts=[],rules={},profiles={},failed=false;
+let players=[],outposts=[],rules={},profiles={},packs={},failed=false;
 const $=id=>document.getElementById(id);
 const lang=()=> $('language').value;
 function item(tag,cls,text){const e=document.createElement(tag);if(cls)e.className=cls;if(text!==undefined)e.textContent=text;return e;}
 function render(){const l=lang(),t=strings[l];document.documentElement.lang=l;
  for(const [k,v] of Object.entries(t)){const e=$(k);if(e)e.textContent=v;}
  $('gameplayLink').href=l==='it'?'https://github.com/Nicco-Male/MeshQuest/blob/main/docs/GAMEPLAY.it.md':'https://github.com/Nicco-Male/MeshQuest/blob/main/docs/GAMEPLAY.md';
+ $('contentGuide').href=l==='it'?'https://github.com/Nicco-Male/MeshQuest/blob/main/docs/CONTENT_PACKS.it.md':'https://github.com/Nicco-Male/MeshQuest/blob/main/docs/CONTENT_PACKS.md';
  const tbody=$('leaders');tbody.replaceChildren();
  if(failed||!players.length){const r=tbody.insertRow(),c=r.insertCell();c.colSpan=3;c.textContent=failed?t.failed:t.none;}
  else for(const p of players){const r=tbody.insertRow();r.insertCell().textContent=p.rank;r.insertCell().textContent=p.nickname;r.insertCell().textContent=p.xp;}
  const op=$('outposts');op.replaceChildren();
  if(failed||!outposts.length)op.textContent=failed?t.failed:t.none;
  else for(const o of outposts){op.append(item('p','',`${o.name} · ${o.node_id} · ${t.approved}`));}
+ const adventures=$('adventures');adventures.replaceChildren();
+ if(!packs[l])adventures.textContent=failed?t.failed:'Loading...';
+ else if(!packs[l].length)adventures.append(item('p','muted',t.adventuresNone));
+ else for(const pack of packs[l]){
+   const section=item('div','mission');
+   section.append(item('div','mission-title',pack.title),
+                  item('div','muted',`${pack.kind.toUpperCase()} · ${pack.author_gateway} · ${pack.chapters.length} ${t.packChapter}`),
+                  item('p','small',pack.summary),item('div','tag',t.packPreview));
+   adventures.append(section);
+ }
  const missions=$('missions');missions.replaceChildren();
  if(!rules[l])missions.textContent=failed?t.failed:'Loading...';
  else for(const m of rules[l].missions){const section=item('div','mission');section.append(item('div','mission-title',m.title),item('div','muted',m.description));missions.append(section);}
@@ -78,8 +90,10 @@ Promise.all([
  fetch('/api/v1/leaderboard').then(r=>{if(!r.ok)throw Error(r.status);return r.json()}),
  fetch('/api/v1/outposts').then(r=>{if(!r.ok)throw Error(r.status);return r.json()}),
  fetch('/api/v1/game/rules?lang=en').then(r=>{if(!r.ok)throw Error(r.status);return r.json()}),
- fetch('/api/v1/game/rules?lang=it').then(r=>{if(!r.ok)throw Error(r.status);return r.json()})
-]).then(([board,op,en,it])=>{players=board.players;outposts=op;rules={en,it};const sel=$('playerSelect');
+ fetch('/api/v1/game/rules?lang=it').then(r=>{if(!r.ok)throw Error(r.status);return r.json()}),
+ fetch('/api/v1/content-packs?lang=en').then(r=>{if(!r.ok)throw Error(r.status);return r.json()}),
+ fetch('/api/v1/content-packs?lang=it').then(r=>{if(!r.ok)throw Error(r.status);return r.json()})
+]).then(([board,op,en,it,contentEn,contentIt])=>{players=board.players;outposts=op;rules={en,it};packs={en:contentEn,it:contentIt};const sel=$('playerSelect');
  for(const p of players){const option=document.createElement('option');option.value=p.node_id;option.textContent=`${p.nickname} (${p.node_id})`;sel.append(option);}render();}).catch(()=>{failed=true;render();});render();
 </script>
 </body>

@@ -4,7 +4,7 @@
 
 **MeshQuest is an experimental, open-source exploration/RPG project for Meshtastic networks.** Players discover *observed radio routes*, identify registered relay outposts and gain experience points (XP). The game backend runs on a central server; ordinary remote Meshtastic nodes can become outposts **without a computer, dedicated agent or MeshQuest channel**.
 
-**Project status: v0.2.0-alpha — API, gameplay progression and leaderboard prototype. The live Meshtastic radio bridge, traceroute validation, self-service accounts and radio commands are NOT implemented yet. Do not deploy this prototype as a public game service.**
+**Project status: v0.3.0-alpha — gameplay and community-authored content API prototype. The live Meshtastic radio bridge, traceroute validation, self-service accounts and radio commands are NOT implemented yet. Do not deploy this prototype as a public game service.**
 
 ## The idea
 
@@ -46,7 +46,8 @@ The API prototype accepts trusted gateway **reports** from a traceroute initiate
 | Authenticated gateway observation ingestion and deduplication | Implemented; no live RF adapter |
 | Unique-outpost XP and lifetime/monthly leaderboard | Implemented |
 | Three progress-based quests, chapters/levels, player profile API and simulated round | Implemented; no radio adapter |
-| English/Italian read-only home page, quest board and profile viewer | Implemented |
+| English/Italian read-only home page, quest board, community adventures and profile viewer | Implemented |
+| Gateway-authored main-story proposals, side quests and DLC, with Pisa admin moderation | Implemented (preview only; no quest completion or DLC XP) |
 | Live Meshtastic bridge and real RF traceroute verification | Not implemented |
 | Website login, radio ownership verification, mission/command parser | Not implemented |
 | Autonomous local/offline play and federated servers | Not implemented |
@@ -92,6 +93,8 @@ The API binds to `127.0.0.1:8765` by default. Do **not** expose it publicly befo
 Use an `X-Admin-Key` HTTP header for admin requests. Register a player, an outpost, approve the outpost and register a gateway using `POST /api/v1/admin/...`. Gateway creation returns a bearer token **once**. Submit `POST /api/v1/observations` with `Authorization: Bearer <gateway-token>`. Test calls report **simulated evidence** and must never be represented as live RF validations.
 
 See the **[first gameplay loop](docs/GAMEPLAY.md)** ([italiano](docs/GAMEPLAY.it.md)), [API examples](docs/API.md) and [architecture/verification notes](docs/ARCHITECTURE.md).
+
+Community Game Masters can submit bilingual **main story proposals**, **side quests** and **DLC packs** with their gateway token. The central server reviews and publishes each pack. See **[Creator Studio / Content Packs](docs/CONTENT_PACKS.md)** ([italiano](docs/CONTENT_PACKS.it.md)) and the [Tuscany sample DLC](examples/tuscany-lost-signal.json). These packs are **preview-only**: posting or approving a pack grants no XP and does not execute radio commands.
 
 ### Simulate a complete round (no radio transmissions)
 

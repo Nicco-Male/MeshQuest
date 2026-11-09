@@ -51,3 +51,8 @@ To explore the same read-only rules on the API run `python -m meshquest` and vis
 ## Next implementation milestone
 
 Build a read-only **Meshtastic serial/TCP adapter** that captures real packets and route metadata into fixtures, then test parser accuracy against specific firmware versions before enabling scoring from live traffic. Do not attach an untested game bot to the public ToscoLig channel.
+
+
+## Future community missions / DLC
+
+Registered radio gateways can now **submit** main-story proposals, side quests and DLC packages for central review. Published content appears as a preview in the read-only web interface. It is not yet possible to accept or complete those missions via LoRa, and suggested rewards do not affect the existing XP system. See [Creator Studio](CONTENT_PACKS.md) / [Italiano](CONTENT_PACKS.it.md).

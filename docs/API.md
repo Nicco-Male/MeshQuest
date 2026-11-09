@@ -35,7 +35,7 @@ curl -fsS "$URL/api/v1/leaderboard"
 
 The ingestion endpoint only verifies **that an authenticated gateway attested** to a traceroute-shaped result. `source="rf_traceroute"` is a claim by that gateway; the API does not independently validate RF hardware. A real gateway adapter and additional proof checks remain future work.
 
-## Read-only game progression (v0.2.0-alpha)
+## Read-only game progression (v0.2.0-alpha onwards)
 
 `GET /api/v1/game/rules?lang=en` (or `lang=it`) returns mission definitions, narrative chapters, level thresholds and proof limitations.
 
@@ -44,3 +44,28 @@ The ingestion endpoint only verifies **that an authenticated gateway attested** 
 `GET /api/v1/players/{node_id}/profile?lang=it` returns a registered player's unique discovered outposts, level, quest progress and unlocked chapters. These endpoints **never award XP or emit radio traffic**. Live RF evidence collection and self-registration are not implemented.
 
 Run `python scripts/demo_game.py --lang it` after installing `.[test]` to exercise an entire **synthetic** three-observation round.
+
+
+## Community content / Creator Studio (v0.3.0-alpha)
+
+A registered radio gateway can propose main-story chapters (`main`), side quests (`side`), and expansions (`dlc`). Pisa controls publication. Packs are *preview-only*: quest completion and community XP are **not** implemented. Use the local-only prototype.
+
+```bash
+# Gateway already registered as above; token must be kept secret.
+curl -fsS -X POST "$URL/api/v1/gateway/content-packs" \
+  -H "Authorization: Bearer $GATEWAY_TOKEN" \
+  -H 'Content-Type: application/json' \
+  --data-binary @examples/tuscany-lost-signal.json
+
+# Check pending proposals (admin only).
+curl -fsS "$URL/api/v1/admin/content-packs?pack_status=pending" -H "X-Admin-Key: $ADMIN_KEY"
+
+# Review the pack in detail before allowing it to become public.
+curl -fsS -X POST "$URL/api/v1/admin/content-packs/tuscany-lost-signal/publish" \
+  -H "X-Admin-Key: $ADMIN_KEY"
+
+# Public previews do not require tokens.
+curl -fsS "$URL/api/v1/content-packs?lang=it"
+```
+
+To reject a pending pack instead, use `POST /api/v1/admin/content-packs/{slug}/reject`. Its author can list their own status through `GET /api/v1/gateway/content-packs` with the bearer token. A pack is immutable once submitted in this prototype, and even an approved `main` proposal does **not** automatically merge into the current hard-coded core campaign. Read [Creator Studio (EN)](CONTENT_PACKS.md) or [Guida autori (IT)](CONTENT_PACKS.it.md).

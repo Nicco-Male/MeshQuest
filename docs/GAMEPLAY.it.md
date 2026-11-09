@@ -39,3 +39,8 @@ La simulazione utilizza il vero backend, un database temporaneo, tre avamposti i
 Avviando `python -m meshquest` puoi consultare `/` per classifica e missioni, `/api/v1/game/rules?lang=it` per le regole e `/api/v1/players/<NodeID>/profile?lang=it` per il profilo di un giocatore già registrato nel database locale.
 
 **Limitazione di sicurezza:** il token autentica il gateway che invia l'osservazione, non garantisce da solo la veridicità del percorso radio. Prima di una classifica pubblica reale servono verifica della proprietà dei nodi, limiti alle richieste, revoca token e test hardware.
+
+
+## Missioni della comunità e DLC (prototipo)
+
+I gateway radio registrati possono ora **proporre** capitoli della storia principale, missioni secondarie e DLC. Pisa ne approva la pubblicazione e il sito mostra un'anteprima. Non è ancora possibile accettare o completare queste missioni via LoRa; gli XP suggeriti non vengono assegnati. Vedi la [guida Creator Studio](CONTENT_PACKS.it.md) / [English](CONTENT_PACKS.md).

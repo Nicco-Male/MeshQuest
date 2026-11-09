@@ -12,13 +12,13 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, status
-from fastapi.responses import PlainTextResponse
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, PlainTextResponse
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 
-from .db import Discovery, Gateway, Observation, Outpost, Player, make_session_factory
+from .db import ContentPack, Discovery, Gateway, Observation, Outpost, Player, make_session_factory, utcnow
 from .game import game_rules, player_profile
+from .content import ContentPackIn, public_pack
 from .schemas import GatewayIn, OutpostIn, PlayerIn, RouteIn, normalize
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -31,7 +31,7 @@ def sha256(secret: str) -> str:
 def create_app(database_url: str | None = None, admin_key: str | None = None) -> FastAPI:
     database_url = database_url or os.getenv("MESHQUEST_DATABASE_URL", "sqlite:///./meshquest.db")
     admin_key = admin_key if admin_key is not None else os.getenv("MESHQUEST_ADMIN_KEY", "")
-    # Render/cloud staging is private by default. The normal local development flow is unchanged.
+    # Cloud staging remains password protected; never silently fall back to SQLite in cloud.
     staging_password = os.getenv("MESHQUEST_STAGING_PASSWORD", "")
     if os.getenv("MESHQUEST_REQUIRE_STAGING_PASSWORD") == "1":
         if not staging_password:
@@ -39,7 +39,7 @@ def create_app(database_url: str | None = None, admin_key: str | None = None) ->
         if not database_url.startswith("postgresql"):
             raise RuntimeError("PostgreSQL is required for cloud staging (no ephemeral SQLite)")
     SessionLocal = make_session_factory(database_url)
-    app = FastAPI(title="MeshQuest", version="0.2.0-alpha", description="Experimental route-observation game API")
+    app = FastAPI(title="MeshQuest", version="0.3.0-alpha", description="Experimental route-observation game API")
 
     @app.middleware("http")
     async def cloud_staging_guard(request: Request, call_next):
@@ -92,7 +92,7 @@ def create_app(database_url: str | None = None, admin_key: str | None = None) ->
 
     @app.get("/health")
     def health():
-        return {"status": "ok", "version": "0.2.0-alpha"}
+        return {"status": "ok", "version": "0.3.0-alpha"}
 
     @app.post("/api/v1/admin/players", dependencies=[Depends(require_admin)], status_code=201)
     def add_player(data: PlayerIn, db=Depends(session_dep)):
@@ -136,6 +136,82 @@ def create_app(database_url: str | None = None, admin_key: str | None = None) ->
             db.rollback()
             raise HTTPException(409, "Gateway already registered")
         return {"gateway_id": gateway.gateway_id, "radio_node_id": gateway.radio_node_id, "token": token, "warning": "Store the token securely. It is displayed only once."}
+
+    @app.post("/api/v1/gateway/content-packs", status_code=201)
+    def submit_content_pack(data: ContentPackIn, gateway: Gateway = Depends(current_gateway), db=Depends(session_dep)):
+        # A gateway can submit a side quest, DLC, or a proposed main-story chapter.
+        # No gateway token can bypass moderation or directly affect XP.
+        pack = ContentPack(
+            slug=data.slug,
+            author_gateway_id=gateway.gateway_id,
+            kind=data.kind,
+            status="pending",
+            content_json=json.dumps(data.model_dump(mode="json"), ensure_ascii=False),
+        )
+        db.add(pack)
+        try:
+            db.commit()
+        except IntegrityError:
+            db.rollback()
+            raise HTTPException(409, "Content pack slug already used")
+        return {"slug": pack.slug, "author_gateway": gateway.gateway_id, "kind": pack.kind, "status": "pending", "published": False}
+
+    @app.get("/api/v1/gateway/content-packs")
+    def my_content_packs(gateway: Gateway = Depends(current_gateway), db=Depends(session_dep)):
+        packs = db.scalars(select(ContentPack).where(ContentPack.author_gateway_id == gateway.gateway_id).order_by(ContentPack.id.desc())).all()
+        return [{"slug": p.slug, "kind": p.kind, "status": p.status, "version": p.version} for p in packs]
+
+    @app.get("/api/v1/admin/content-packs", dependencies=[Depends(require_admin)])
+    def review_content_packs(pack_status: str = Query(default="pending", pattern=r"^(pending|published|rejected)$"),
+                             limit: int = Query(default=50, ge=1, le=50), db=Depends(session_dep)):
+        packs = db.scalars(select(ContentPack).where(ContentPack.status == pack_status)
+                           .order_by(ContentPack.id.desc()).limit(limit)).all()
+        return [
+            {"slug": pack.slug, "kind": pack.kind, "author_gateway": pack.author_gateway_id,
+             "status": pack.status, "content": json.loads(pack.content_json)}
+            for pack in packs
+        ]
+
+    @app.post("/api/v1/admin/content-packs/{slug}/publish", dependencies=[Depends(require_admin)])
+    def publish_content_pack(slug: str, db=Depends(session_dep)):
+        pack = db.scalar(select(ContentPack).where(ContentPack.slug == slug))
+        if pack is None:
+            raise HTTPException(404, "Unknown content pack")
+        if pack.status != "pending":
+            raise HTTPException(409, "Only pending content can be published")
+        pack.status = "published"
+        pack.reviewed_at = utcnow()
+        db.commit()
+        return {"slug": pack.slug, "status": pack.status, "kind": pack.kind}
+
+    @app.post("/api/v1/admin/content-packs/{slug}/reject", dependencies=[Depends(require_admin)])
+    def reject_content_pack(slug: str, db=Depends(session_dep)):
+        pack = db.scalar(select(ContentPack).where(ContentPack.slug == slug))
+        if pack is None:
+            raise HTTPException(404, "Unknown content pack")
+        if pack.status != "pending":
+            raise HTTPException(409, "Only pending content can be rejected")
+        pack.status = "rejected"
+        pack.reviewed_at = utcnow()
+        db.commit()
+        return {"slug": pack.slug, "status": pack.status}
+
+    @app.get("/api/v1/content-packs")
+    def list_public_content_packs(lang: str = Query(default="en", pattern=r"^(en|it)$"),
+                                  kind: str | None = Query(default=None, pattern=r"^(main|side|dlc)$"),
+                                  limit: int = Query(default=50, ge=1, le=50), db=Depends(session_dep)):
+        query = select(ContentPack).where(ContentPack.status == "published")
+        if kind is not None:
+            query = query.where(ContentPack.kind == kind)
+        packs = db.scalars(query.order_by(ContentPack.id.desc()).limit(limit)).all()
+        return [public_pack(pack, lang) for pack in packs]
+
+    @app.get("/api/v1/content-packs/{slug}")
+    def get_public_content_pack(slug: str, lang: str = Query(default="en", pattern=r"^(en|it)$"), db=Depends(session_dep)):
+        pack = db.scalar(select(ContentPack).where(ContentPack.slug == slug, ContentPack.status == "published"))
+        if pack is None:
+            raise HTTPException(404, "Content pack not published")
+        return public_pack(pack, lang)
 
     @app.get("/api/v1/outposts")
     def list_outposts(db=Depends(session_dep)):

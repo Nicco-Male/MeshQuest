@@ -36,3 +36,8 @@
 - [Meshtastic Python API](https://python.meshtastic.org/)
 
 The official protocol and firmware versions must be checked against hardware during integration. This repository is not an official Meshtastic component.
+
+
+## Game Masters / community content (v0.3.0-alpha)
+
+A radio gateway with a host computer may also propose story content, without running a separate authoritative game server. It sends a validated declarative pack to the Pisa API using its **existing gateway bearer token**. Content is stored as pending; the Pisa administrator reviews and publishes it. Public readers see only published packages. `main`, `side` and `dlc` are distinct campaign categories; gateway users cannot directly change the canonical narrative or the scoreboard. No custom script execution is permitted. Mission completion and XP award integration are still future work. See [Creator Studio](CONTENT_PACKS.md) / [Italiano](CONTENT_PACKS.it.md).
