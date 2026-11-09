@@ -16,10 +16,10 @@ from fastapi.responses import FileResponse, PlainTextResponse
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 
-from .db import ContentPack, Discovery, Gateway, Observation, Outpost, Player, make_session_factory, utcnow
+from .db import ContentPack, Discovery, Gateway, GatewayPacket, GatewayRuntime, Observation, Outpost, Player, make_session_factory, utcnow
 from .game import game_rules, player_profile
-from .content import ContentPackIn, public_pack
-from .schemas import GatewayIn, OutpostIn, PlayerIn, RouteIn, normalize
+from .content import ContentPackIn, ContentSimulationIn, public_pack, simulate_pack
+from .schemas import GatewayHeartbeatIn, GatewayPacketIn, GatewayIn, OutpostIn, PlayerIn, RouteIn, normalize
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -39,7 +39,7 @@ def create_app(database_url: str | None = None, admin_key: str | None = None) ->
         if not database_url.startswith("postgresql"):
             raise RuntimeError("PostgreSQL is required for cloud staging (no ephemeral SQLite)")
     SessionLocal = make_session_factory(database_url)
-    app = FastAPI(title="MeshQuest", version="0.3.0-alpha", description="Experimental route-observation game API")
+    app = FastAPI(title="MeshQuest", version="0.4.0-alpha", description="Experimental route-observation game API")
 
     @app.middleware("http")
     async def cloud_staging_guard(request: Request, call_next):
@@ -90,9 +90,15 @@ def create_app(database_url: str | None = None, admin_key: str | None = None) ->
     def home():
         return FileResponse(BASE_DIR / "web" / "index.html")
 
+    @app.get("/creator", include_in_schema=False)
+    def creator_studio():
+        return FileResponse(BASE_DIR / "web" / "creator.html",
+                            headers={"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff",
+                                     "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'self'; img-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"})
+
     @app.get("/health")
     def health():
-        return {"status": "ok", "version": "0.3.0-alpha"}
+        return {"status": "ok", "version": "0.4.0-alpha"}
 
     @app.post("/api/v1/admin/players", dependencies=[Depends(require_admin)], status_code=201)
     def add_player(data: PlayerIn, db=Depends(session_dep)):
@@ -136,6 +142,80 @@ def create_app(database_url: str | None = None, admin_key: str | None = None) ->
             db.rollback()
             raise HTTPException(409, "Gateway already registered")
         return {"gateway_id": gateway.gateway_id, "radio_node_id": gateway.radio_node_id, "token": token, "warning": "Store the token securely. It is displayed only once."}
+
+    @app.post("/api/v1/admin/gateways/{gateway_id}/disable", dependencies=[Depends(require_admin)])
+    def disable_gateway(gateway_id: str, db=Depends(session_dep)):
+        """Immediately revoke the gateway's bearer token without impacting other gateways."""
+        gateway = db.scalar(select(Gateway).where(Gateway.gateway_id == gateway_id))
+        if gateway is None:
+            raise HTTPException(404, "Unknown gateway")
+        gateway.enabled = False
+        db.commit()
+        return {"gateway_id": gateway.gateway_id, "enabled": False, "token_revoked": True}
+
+    @app.post("/api/v1/gateway/heartbeat")
+    def gateway_heartbeat(data: GatewayHeartbeatIn, gateway: Gateway = Depends(current_gateway), db=Depends(session_dep)):
+        """Authenticated liveness only. Gateways are NOT game engines."""
+        runtime = db.get(GatewayRuntime, gateway.id)
+        if runtime is None:
+            runtime = GatewayRuntime(gateway_id=gateway.id, agent_version=data.agent_version,
+                                     transport=data.transport)
+            db.add(runtime)
+        runtime.agent_version = data.agent_version
+        runtime.transport = data.transport
+        runtime.last_seen_at = utcnow()
+        db.commit()
+        return {"gateway_id": gateway.gateway_id, "accepted": True,
+                "mode": "metadata_only", "game_state_authority": "central_server"}
+
+    @app.post("/api/v1/gateway/packets")
+    def gateway_packet(data: GatewayPacketIn, gateway: Gateway = Depends(current_gateway), db=Depends(session_dep)):
+        """Metadata capture endpoint; never promotes packet arrival into verified RF evidence."""
+        old = db.scalar(select(GatewayPacket).where(GatewayPacket.gateway_id == gateway.id,
+                                                     GatewayPacket.event_id == data.event_id))
+        if old:
+            return {"accepted": True, "duplicate": True, "awarded_xp": 0}
+        record = GatewayPacket(
+            gateway_id=gateway.id, event_id=data.event_id,
+            sender_node_id=normalize(data.sender_node_id) if data.sender_node_id else None,
+            channel_index=data.channel_index, portnum=data.portnum,
+            hop_start=data.hop_start, hop_limit=data.hop_limit,
+            rx_rssi=data.rx_rssi, rx_snr=data.rx_snr,
+        )
+        db.add(record)
+        try:
+            db.commit()
+        except IntegrityError:
+            db.rollback()
+            return {"accepted": True, "duplicate": True, "awarded_xp": 0}
+        return {"accepted": True, "duplicate": False, "awarded_xp": 0}
+
+    @app.get("/api/v1/admin/gateways/status", dependencies=[Depends(require_admin)])
+    def gateway_status(db=Depends(session_dep)):
+        gateways = db.scalars(select(Gateway).order_by(Gateway.gateway_id)).all()
+        result = []
+        for gateway in gateways:
+            runtime = db.get(GatewayRuntime, gateway.id)
+            packet_count = db.scalar(select(func.count(GatewayPacket.id)).where(GatewayPacket.gateway_id == gateway.id))
+            result.append({"gateway_id": gateway.gateway_id, "radio_node_id": gateway.radio_node_id,
+                           "enabled": gateway.enabled,
+                           "last_seen_at": runtime.last_seen_at.isoformat() if runtime else None,
+                           "agent_version": runtime.agent_version if runtime else None,
+                           "transport": runtime.transport if runtime else None,
+                           "packet_metadata_count": packet_count})
+        return result
+
+    @app.post("/api/v1/gateway/content-packs/validate")
+    def validate_content_pack(data: ContentPackIn, gateway: Gateway = Depends(current_gateway)):
+        return {"valid": True, "slug": data.slug, "kind": data.kind,
+                "chapters": len(data.chapters),
+                "missions": sum(len(ch.missions) for ch in data.chapters),
+                "gateway": gateway.gateway_id, "persisted": False,
+                "playable": False, "awarded_xp": 0}
+
+    @app.post("/api/v1/gateway/content-packs/simulate")
+    def simulate_content_pack(data: ContentSimulationIn, gateway: Gateway = Depends(current_gateway)):
+        return simulate_pack(data.pack, data.evidence)
 
     @app.post("/api/v1/gateway/content-packs", status_code=201)
     def submit_content_pack(data: ContentPackIn, gateway: Gateway = Depends(current_gateway), db=Depends(session_dep)):

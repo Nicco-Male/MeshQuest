@@ -1,5 +1,5 @@
 """Strict external API payloads: route labels represent *observations*, not guaranteed RF paths."""
-from typing import Annotated
+from typing import Annotated, Literal
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
 NodeID = Annotated[str, StringConstraints(pattern=r"^![0-9a-fA-F]{8}$")]
@@ -37,3 +37,22 @@ class RouteIn(StrictModel):
 
 def normalize(node_id: str) -> str:
     return node_id.lower()
+
+
+class GatewayHeartbeatIn(StrictModel):
+    agent_version: str = Field(min_length=1, max_length=32, pattern=r"^[a-zA-Z0-9._-]+$")
+    transport: Literal["serial", "tcp", "test"]
+
+
+class GatewayPacketIn(StrictModel):
+    """Untrusted radio metadata. Ingestion must NEVER grant game XP."""
+    event_id: str = Field(min_length=8, max_length=80, pattern=r"^[a-zA-Z0-9._:-]+$")
+    observation_type: Literal["packet_metadata_only"]
+    channel_index: int = Field(ge=0, le=7)
+    sender_node_id: NodeID | None = None
+    portnum: str | None = Field(default=None, max_length=64)
+    hop_start: int | None = Field(default=None, ge=0, le=15)
+    hop_limit: int | None = Field(default=None, ge=0, le=15)
+    rx_rssi: int | None = Field(default=None, ge=-200, le=0)
+    rx_snr: float | None = Field(default=None, ge=-100, le=100, allow_inf_nan=False)
+    via_mqtt: Literal[False] = False

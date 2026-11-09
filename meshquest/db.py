@@ -86,3 +86,29 @@ def make_session_factory(database_url: str):
     engine = create_engine(database_url, pool_pre_ping=True, **opts)
     Base.metadata.create_all(engine)  # Initial prototype only: add migrations before production rollout.
     return sessionmaker(bind=engine, expire_on_commit=False)
+
+
+class GatewayRuntime(Base):
+    """Last authenticated contact; gateway has no game-state authority."""
+    __tablename__ = "gateway_runtime"
+    gateway_id: Mapped[int] = mapped_column(ForeignKey("gateways.id"), primary_key=True)
+    agent_version: Mapped[str] = mapped_column(String(32))
+    transport: Mapped[str] = mapped_column(String(16))
+    last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class GatewayPacket(Base):
+    """Minimal packet metadata, never chat payload or player scoring evidence."""
+    __tablename__ = "gateway_packets"
+    __table_args__ = (UniqueConstraint("gateway_id", "event_id", name="uq_gateway_packet_event"),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    gateway_id: Mapped[int] = mapped_column(ForeignKey("gateways.id"), index=True)
+    event_id: Mapped[str] = mapped_column(String(80))
+    sender_node_id: Mapped[str | None] = mapped_column(String(9), nullable=True)
+    channel_index: Mapped[int] = mapped_column(Integer)
+    portnum: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    hop_start: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    hop_limit: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    rx_rssi: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    rx_snr: Mapped[float | None] = mapped_column(nullable=True)
+    received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
