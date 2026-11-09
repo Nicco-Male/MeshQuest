@@ -53,6 +53,10 @@ The API prototype accepts trusted gateway **reports** from a traceroute initiate
 | Website login, radio ownership verification, mission/command parser | Not implemented |
 | Autonomous local/offline play and federated servers | Not implemented |
 
+## Optional passive MQTT observer (Core transport)
+
+MeshQuest can observe Meshtastic JSON MQTT messages without touching any Berry, game state or API container. The opt-in `mqtt-observer` has its own Dockerfile and Compose overlay. It emits transport-neutral events to an in-memory bus; **no scoring, packet publishing or RF validation**. See [MQTT setup](docs/MQTT.md) ([italiano](docs/MQTT.it.md)). It does not start with the default Compose stack.
+
 ## Cloud staging (optional)
 
 A password-protected **Render + Neon** blueprint is available for API/UI testing without a home-server LXC. **No cloud service is deployed automatically by this repository.** GitHub Pages and Actions alone cannot host the persistent game API. See [cloud staging instructions](docs/HOSTING.md) ([italiano](docs/HOSTING.it.md)). The free Render instance sleeps when idle and the alpha is **not** ready for public gameplay.
