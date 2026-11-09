@@ -20,6 +20,7 @@ from .db import ContentPack, Discovery, Gateway, GatewayPacket, GatewayRuntime, 
 from .game import game_rules, player_profile
 from .content import ContentPackIn, ContentSimulationIn, public_pack, simulate_pack
 from .schemas import GatewayHeartbeatIn, GatewayPacketIn, GatewayIn, OutpostIn, PlayerIn, RouteIn, normalize
+from .salvo import install_salvo  # register SQLAlchemy models before create_all
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -387,6 +388,7 @@ def create_app(database_url: str | None = None, admin_key: str | None = None) ->
         result = [{"rank": index, "node_id": row.node_id, "nickname": row.nickname, "xp": int(row.xp or 0), "outposts": int(row.outposts or 0)} for index, row in enumerate(sorted(rows, key=lambda r: (-int(r.xp or 0), r.nickname.casefold())), start=1)]
         return {"scope": scope, "players": result}
 
+    install_salvo(app, session_dep, require_admin, current_gateway)
     return app
 
 
