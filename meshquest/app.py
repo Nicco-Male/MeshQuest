@@ -33,8 +33,11 @@ def create_app(database_url: str | None = None, admin_key: str | None = None) ->
     admin_key = admin_key if admin_key is not None else os.getenv("MESHQUEST_ADMIN_KEY", "")
     # Render/cloud staging is private by default. The normal local development flow is unchanged.
     staging_password = os.getenv("MESHQUEST_STAGING_PASSWORD", "")
-    if os.getenv("MESHQUEST_REQUIRE_STAGING_PASSWORD") == "1" and not staging_password:
-        raise RuntimeError("MESHQUEST_STAGING_PASSWORD is required for cloud staging")
+    if os.getenv("MESHQUEST_REQUIRE_STAGING_PASSWORD") == "1":
+        if not staging_password:
+            raise RuntimeError("MESHQUEST_STAGING_PASSWORD is required for cloud staging")
+        if not database_url.startswith("postgresql"):
+            raise RuntimeError("PostgreSQL is required for cloud staging (no ephemeral SQLite)")
     SessionLocal = make_session_factory(database_url)
     app = FastAPI(title="MeshQuest", version="0.2.0-alpha", description="Experimental route-observation game API")
 
