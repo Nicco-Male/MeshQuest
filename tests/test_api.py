@@ -93,3 +93,35 @@ def test_outgoing_route_not_credited_and_pending_hidden(tmp_path):
         data["route_to_player"] = ["!11223344"]
         result = client.post("/api/v1/observations", json=data, headers=auth)
         assert result.status_code == 200 and result.json()["xp_awarded"] == 0
+
+
+def test_staging_requires_credentials_and_preserves_bearer_auth(tmp_path, monkeypatch):
+    import base64
+    monkeypatch.delenv("MESHQUEST_REQUIRE_STAGING_PASSWORD", raising=False)
+    monkeypatch.setenv("MESHQUEST_STAGING_PASSWORD", "staging-test-secret")
+    with make_client(tmp_path) as client:
+        assert client.get("/health").status_code == 200
+        assert client.get("/").status_code == 401
+        assert client.get("/api/v1/leaderboard").status_code == 401
+        basic = base64.b64encode(b"meshquest:staging-test-secret").decode()
+        assert client.get("/docs", headers={"authorization": "Basic " + basic}).status_code == 200
+        assert client.get("/api/v1/leaderboard", headers={"x-meshquest-staging-password": "staging-test-secret"}).status_code == 200
+        assert client.get("/", headers={"x-meshquest-staging-password": "wrong"}).status_code == 401
+        headers = {"x-meshquest-staging-password": "staging-test-secret", **ADMIN}
+        assert client.post("/api/v1/admin/players", json={"node_id": "!aabbccdd", "nickname": "Tester"}, headers=headers).status_code == 201
+
+
+def test_staging_refuses_to_boot_without_password(tmp_path, monkeypatch):
+    import pytest
+    monkeypatch.setenv("MESHQUEST_REQUIRE_STAGING_PASSWORD", "1")
+    monkeypatch.delenv("MESHQUEST_STAGING_PASSWORD", raising=False)
+    with pytest.raises(RuntimeError, match="MESHQUEST_STAGING_PASSWORD"):
+        create_app(f"sqlite:///{tmp_path / 'missing.db'}", "test-admin-key")
+
+
+def test_staging_requires_external_postgres(tmp_path, monkeypatch):
+    import pytest
+    monkeypatch.setenv("MESHQUEST_REQUIRE_STAGING_PASSWORD", "1")
+    monkeypatch.setenv("MESHQUEST_STAGING_PASSWORD", "staging-test-secret")
+    with pytest.raises(RuntimeError, match="PostgreSQL is required"):
+        create_app(f"sqlite:///{tmp_path / 'missing.db'}", "test-admin-key")

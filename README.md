@@ -51,6 +51,10 @@ The API prototype accepts trusted gateway **reports** from a traceroute initiate
 | Website login, radio ownership verification, mission/command parser | Not implemented |
 | Autonomous local/offline play and federated servers | Not implemented |
 
+## Cloud staging (optional)
+
+A password-protected **Render + Neon** blueprint is available for API/UI testing without a home-server LXC. **No cloud service is deployed automatically by this repository.** GitHub Pages and Actions alone cannot host the persistent game API. See [cloud staging instructions](docs/HOSTING.md) ([italiano](docs/HOSTING.it.md)). The free Render instance sleeps when idle and the alpha is **not** ready for public gameplay.
+
 ## Run locally
 
 Requirements: Python 3.11+, Git.
