@@ -46,21 +46,44 @@ class Packet:
     text: str
 
 
-def parse_message(topic, raw, root="msh/EU_868"):
-    """Allow only decoded text packets in the named MeshQuest topic.
+def topic_info(topic, root="msh/EU_868"):
+    """Match MeshQuest by its *exact topic segment*, regardless of region depth.
 
-    JSON formats seen in Meshtastic firmware and external converters are
-    supported. A numeric channel index is NOT used to identify a channel
-    because indices are local to each radio.
+    Expected suffix: /<version>/e|json/MeshQuest/<publisher>.
+    The segments preceding that suffix may include IT/Tuscany/Pisa or other
+    geographic subdivisions. Do not match other channels or substring names.
     """
     parts = topic.split("/")
     prefix = root.strip("/").split("/")
-    if (len(parts) != len(prefix) + 4 or parts[:len(prefix)] != prefix
-            or parts[len(prefix)] not in ("1", "2")
-            or parts[len(prefix) + 1] != "json"
-            or parts[len(prefix) + 2] != CHANNEL):
+    if (len(parts) < len(prefix) + 4 or parts[:len(prefix)] != prefix
+            or parts[-4] not in ("1", "2")
+            or parts[-3] not in ("e", "json")
+            or parts[-2] != CHANNEL):
         return None
     publisher = node_id(parts[-1])
+    if publisher is None:
+        return None
+    return parts[-3], publisher
+
+
+def topic_subscriptions(root, max_geo_depth=8):
+    """Enumerate exact MQTT wildcard filters, not a high-volume root/# feed.
+
+    MQTT '#' cannot occur in the middle of a filter. The depth is bounded to
+    eight extra geographic levels; an unbounded match requires root/# plus a
+    client-side check.
+    """
+    prefix = root.strip("/")
+    return [prefix + "/+" * n + "/+/{}{}+".format(kind, "/" + CHANNEL + "/")
+            for n in range(max_geo_depth + 1) for kind in ("e", "json")]
+
+
+def parse_message(topic, raw, root="msh/EU_868"):
+    """Parse decoded JSON text ONLY from MeshQuest, with variable geo depth."""
+    info = topic_info(topic, root)
+    if info is None or info[0] != "json":
+        return None
+    publisher = info[1]
     if publisher is None or len(raw) > 4096:
         return None
     try:
@@ -234,7 +257,7 @@ def main(argv=None):
     if args.tls:
         client.tls_set()
     root = args.root.strip("/")
-    subscribe_topic = root + "/+/json/MeshQuest/+"
+    subscribe_topics = topic_subscriptions(root)
     downlink = root + "/2/json/mqtt/"
 
     def respond(reply):
@@ -250,12 +273,20 @@ def main(argv=None):
 
     def on_connect(client, userdata, flags, reason_code, properties):
         if reason_code == 0:
-            client.subscribe(subscribe_topic, qos=0)
-            print("Listening only to %s; TX=%s" % (subscribe_topic, args.enable_tx), flush=True)
+            client.subscribe([(topic, 0) for topic in subscribe_topics])
+            print("Listening to MeshQuest at geographic depths 0..8; TX=%s"
+                  % args.enable_tx, flush=True)
         else:
             print("MQTT connection rejected: %s" % reason_code, file=sys.stderr)
 
     def on_message(client, userdata, msg):
+        info = topic_info(msg.topic, root)
+        if info is None:
+            return
+        if info[0] == "e":
+            # Protobuf/encrypted packet; topic receipt only until decoder exists.
+            print("RX MeshQuest protobuf topic=%s (not decoded)" % msg.topic, flush=True)
+            return
         packet = parse_message(msg.topic, msg.payload, root)
         if packet is None:
             return
