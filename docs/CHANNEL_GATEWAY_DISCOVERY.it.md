@@ -50,9 +50,41 @@ MeshQuest connesso a Navacchio. Comandi: !help, !games
 ```
 
 Per Pisa il comando è `!use pisa`, con risposta privata da Pisa.
-Il cooldown dei DM è di 15 secondi per giocatore e gateway.
-La ricezione e il primo DM sono implementati nel pilot; l'elaborazione
-dei successivi comandi di gioco rimane una fase separata.
+Il cooldown del primo DM è di 15 secondi per giocatore e gateway.
+
+### Comandi nei DM dopo la selezione
+
+Una volta ricevuto il primo DM, il giocatore risponde **nella stessa chat
+privata con il gateway selezionato**, per esempio:
+
+```text
+!help
+MQ Navacchio: !games lista giochi; !play salvo demo; !status; !exit
+
+!games
+MQ giochi: Salvo (demo), Exploration (demo). Usa !play salvo
+
+!play salvo
+Salvo demo disponibile: gameplay radio e punti non ancora attivi.
+```
+
+Il bot esegue un polling dei DM dalla stessa sorgente con
+`GET /api/v1/sources/<uuid>/messages?channel=-1&limit=100` e usa
+`toNodeId` nell'API v1 per ogni risposta. Non apre connessioni TCP 4403.
+
+Sono supportati anche `!menu`, `!listgame`, `!join salvo`,
+`!status` e `!exit`. Sessioni in memoria per 30 minuti dall'ultimo
+comando riconosciuto; `!exit` le chiude. Non vengono assegnati XP
+o crediti, non viene avviata una partita reale, né è ancora attiva
+l'identificazione dell'account: questo è il menu **demo radio**.
+
+La prima scansione all'avvio ignora i DM storici; dopo l'aggiornamento
+occorre quindi effettuare di nuovo `!gateways` e `!use navacchio`
+prima di provare `!help` o `!games`. I comandi vengono accettati
+solo dal NodeID che ha completato la selezione e sulla radio
+selezionata. Le risposte sono distanziate di almeno 2 secondi
+per sessione quando arrivano più comandi contemporaneamente.
+
 
 ## Esecuzione sul CT 151
 
@@ -80,7 +112,8 @@ Non usa altre radio e non modifica i canali.
 Attendi che compaia `Watching ... (history ignored)` per tutti i gateway.
 A quel punto manda `!gateways` una sola volta sul canale MeshQuest da F.
 Dopo aver ricevuto le risposte manda `!use navacchio` sul canale.
-Verifica poi il primo DM proveniente da Navacchio sul nodo F.
+Verifica il primo DM proveniente da Navacchio sul nodo F e invia
+`!help` **in DM**, non sul canale.
 
 Se vuoi limitare il primo test a Navacchio e Pisa:
 
@@ -119,7 +152,7 @@ Trasmissione del gateway specifico:
 `POST /api/v1/sources/<uuid>/messages` con
 `{"channel":N,"text":"MQ RX <name>"}`.
 
-Primo DM, dopo `!use <name>`:
+Primo DM e successive risposte in privato:
 `POST /api/v1/sources/<uuid>/messages` con
 `{"toNodeId":"<player nodeid>","text":"MeshQuest connesso a <name>..."}`.
 Il NodeID appare soltanto nel payload interno della richiesta API.
