@@ -44,7 +44,7 @@ def test_income_and_credits_never_mint_when_replaying_solve(tmp_path):
     g.handle(PLAYER, "!play salvo", now=100)
     g.handle(PLAYER, "!hack 1", now=101)
     g.handle(PLAYER, "!solve 5", now=102)
-    assert "1 nodi" in g.handle(PLAYER, "!status", now=102)
+    assert "1/6 nodi" in g.handle(PLAYER, "!status", now=102)
     assert "7c" in g.handle(PLAYER, "!status", now=282)  # 3 minutes income
     assert "7c" in g.handle(PLAYER, "!status", now=283)
     assert g.handle(PLAYER, "!solve 5", now=284).startswith("Nessun puzzle")
