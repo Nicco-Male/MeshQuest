@@ -23,6 +23,11 @@ class API:
     def __init__(self):
         self.rows = {NAV.source_id: [], PISA.source_id: []}
         self.sent = []
+        self.dms = []
+
+    def dm(self, gateway, player, text):
+        self.dms.append((gateway.source_id, player, text))
+        return len(self.dms)
 
     def read_channel(self, gateway):
         return list(self.rows[gateway.source_id])
@@ -42,11 +47,11 @@ def test_each_receiver_replies_once_on_channel_not_dm():
     bot.poll(now=1)
     assert api.sent == []
     bot.flush(now=1.9)
-    assert api.sent == [(NAV.source_id, 5, "MQ RX Navacchio !eb4a6925")]
+    assert api.sent == [(NAV.source_id, 5, "MQ RX Navacchio")]
     bot.flush(now=4)
     assert api.sent == [
         (NAV.source_id, 5, "MQ RX Navacchio !eb4a6925"),
-        (PISA.source_id, 5, "MQ RX Pisa !847eb6bb"),
+        (PISA.source_id, 5, "MQ RX Pisa"),
     ]
     bot.poll(now=6)
     bot.flush(now=100)
@@ -169,10 +174,140 @@ def test_radio_tx_uses_v1_channel_and_no_destination():
     assert req.get_method() == "POST"
     assert req.full_url.endswith("/api/v1/sources/" + NAV.source_id + "/messages")
     assert req.get_header("Authorization") == "Bearer api-secret"
-    assert json.loads(req.data) == {"text": "MQ RX Navacchio !eb4a6925", "channel": 5}
+    assert json.loads(req.data) == {"text": "MQ RX Navacchio", "channel": 5}
 
 
 def test_no_broadcast_without_receiver_rssi_or_snr():
     assert is_rf_discovery(msg(9, rxRssi=-84, rxSnr=None), NAV)
     assert is_rf_discovery(msg(10, rxRssi=None, rxSnr=0), NAV)
     assert not is_rf_discovery(msg(11, rxRssi=None, rxSnr=None), NAV)
+
+
+def test_named_gateway_selection_initiates_only_selected_dm():
+    api = API()
+    bot = ChannelDiscovery(api, [NAV, PISA], allowed_player="!e9a04b31")
+    bot.poll(now=0)
+    api.rows[NAV.source_id].append(msg(201))
+    api.rows[PISA.source_id].append(msg(201))
+    bot.poll(now=1)
+    bot.flush(now=6)
+    api.rows[NAV.source_id].append(msg(202, text="!use navacchio"))
+    api.rows[PISA.source_id].append(msg(202, text="!use navacchio"))
+    bot.poll(now=7)
+    bot.flush(now=8)
+    assert api.dms == [
+        (NAV.source_id, "!e9a04b31",
+         "MeshQuest connesso a Navacchio. Comandi: !help, !games"),
+    ]
+    bot.poll(now=9)
+    bot.flush(now=15)
+    assert len(api.dms) == 1
+
+
+def test_selection_only_if_named_radio_received_discovery():
+    api = API()
+    bot = ChannelDiscovery(api, [NAV, PISA])
+    bot.poll(now=0)
+    api.rows[NAV.source_id].append(msg(1))
+    bot.poll(now=1)
+    api.rows[PISA.source_id].append(msg(2, text="!use pisa"))
+    bot.poll(now=2)
+    bot.flush(now=7)
+    assert api.dms == []
+
+
+def test_selection_requires_fresh_discovery():
+    api = API()
+    bot = ChannelDiscovery(api, [NAV])
+    bot.poll(now=0)
+    api.rows[NAV.source_id].append(msg(1))
+    bot.poll(now=1)
+    api.rows[NAV.source_id].append(msg(2, text="!use navacchio"))
+    bot.poll(now=130)
+    bot.flush(now=150)
+    assert api.dms == []
+
+
+def test_selection_uses_full_unique_name_and_no_node_id():
+    api = API()
+    bot = ChannelDiscovery(api, [NAV, PISA])
+    bot.poll(now=0)
+    api.rows[NAV.source_id].append(msg(1))
+    bot.poll(now=1)
+    api.rows[NAV.source_id].append(msg(2, text="!use !eb4a6925"))
+    api.rows[NAV.source_id].append(msg(3, text="!use pisa"))
+    api.rows[NAV.source_id].append(msg(4, text="!use NAVACCHIO"))
+    bot.poll(now=2)
+    bot.flush(now=3)
+    assert len(api.dms) == 1 and api.dms[0][0] == NAV.source_id
+    assert "!" not in make_reply(NAV)
+
+
+def test_ambiguous_gateway_names_never_trigger_dm():
+    other = Gateway(PISA.source_id, "NAVACCHIO", PISA.node_id, 5, 1)
+    api = API()
+    bot = ChannelDiscovery(api, [NAV, other])
+    bot.poll(now=0)
+    api.rows[NAV.source_id].append(msg(1))
+    api.rows[other.source_id].append(msg(1))
+    bot.poll(now=1)
+    api.rows[NAV.source_id].append(msg(2, text="!use navacchio"))
+    api.rows[other.source_id].append(msg(2, text="!use navacchio"))
+    bot.poll(now=2)
+    bot.flush(now=8)
+    assert api.dms == []
+
+
+def test_selection_mqtt_echo_and_cooldown():
+    api = API()
+    bot = ChannelDiscovery(api, [NAV], cooldown=15)
+    bot.poll(now=0)
+    api.rows[NAV.source_id].append(msg(1))
+    bot.poll(now=1)
+    api.rows[NAV.source_id].append(msg(2, text="!use navacchio", viaMqtt=True))
+    api.rows[NAV.source_id].append(msg(3, text="!use navacchio", rxSnr=None, rxRssi=None))
+    bot.poll(now=2)
+    bot.flush(now=3)
+    assert not api.dms
+    api.rows[NAV.source_id].append(msg(4, text="!use navacchio"))
+    bot.poll(now=4)
+    bot.flush(now=5)
+    assert len(api.dms) == 1
+    api.rows[NAV.source_id].append(msg(5, text="!use navacchio"))
+    bot.poll(now=7)
+    bot.flush(now=8)
+    assert len(api.dms) == 1
+    api.rows[NAV.source_id].append(msg(6, text="!use navacchio"))
+    bot.poll(now=21)
+    bot.flush(now=22)
+    assert len(api.dms) == 2
+
+
+def test_dm_api_v1_uses_destination_without_channel():
+    requests = []
+    def fake_open(req, timeout):
+        requests.append(req)
+        return Response({"success": True, "data": {
+            "messageCount": 1, "channel": -1, "toNodeId": "!e9a04b31",
+            "requestId": 42
+        }}, status=201)
+    api = MeshMonitorAPI("http://192.168.10.39:3001", "api-secret",
+                         allow_http_lan=True, opener=fake_open)
+    assert api.dm(NAV, "!e9a04b31", "MeshQuest connesso a Navacchio") == 42
+    assert json.loads(requests[0].data) == {
+        "text": "MeshQuest connesso a Navacchio", "toNodeId": "!e9a04b31"
+    }
+    assert "/sources/" + NAV.source_id + "/messages" in requests[0].full_url
+
+
+def test_dm_and_broadcast_dry_run_both_blocked():
+    api = API()
+    bot = ChannelDiscovery(api, [NAV], dry_run=True)
+    bot.poll(now=0)
+    api.rows[NAV.source_id].append(msg(1))
+    bot.poll(now=1)
+    bot.flush(now=4)
+    api.rows[NAV.source_id].append(msg(2, text="!use navacchio"))
+    bot.poll(now=5)
+    bot.flush(now=7)
+    assert api.sent == [] and api.dms == []
