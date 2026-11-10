@@ -2,8 +2,8 @@
 """Experimental MeshQuest MQTT channel discovery -> single-gateway DM pilot.
 
 Python 3.9+, suitable for small ARM devices but intended for the central pilot.
-By default RX-only; use --enable-tx explicitly after configuring the Meshtastic
-MQTT JSON downlink. No game state, account identity or XP is changed here.
+By default RX-only; --enable-tx explicitly opts in to either MeshMonitor v1 DM
+or Meshtastic JSON MQTT downlink. No game state, account identity or XP changes.
 """
 import argparse
 import json
@@ -229,8 +229,12 @@ def main(argv=None):
     p.add_argument("--root", default=os.getenv("MESHQUEST_MQTT_ROOT", "msh/EU_868"))
     p.add_argument("--tx-node-id", default=os.getenv("MESHQUEST_MQTT_TX_NODE_ID", ""))
     p.add_argument("--tx-channel-index", type=int, default=None)
-    p.add_argument("--downlink-topic", default="", help="Exact gateway's MQTT JSON control topic; must end in /2/json/mqtt/ (no NodeID suffix)")
-    p.add_argument("--enable-tx", action="store_true", help="Send real DMs via Meshtastic JSON MQTT downlink")
+    p.add_argument("--downlink-topic", default="", help="Exact MQTT control topic for the mqtt downlink transport")
+    p.add_argument("--tx-transport", choices=("mqtt", "meshmonitor"), default="mqtt")
+    p.add_argument("--meshmonitor-url", default="", help="MeshMonitor server base URL")
+    p.add_argument("--meshmonitor-source-id", default="", help="Source UUID for Navacchio or another TX radio")
+    p.add_argument("--allow-http-lan", action="store_true", help="Explicitly allow Bearer token over private-IP HTTP for LAN pilot")
+    p.add_argument("--enable-tx", action="store_true", help="Actually transmit replies (default: RX-only)")
     p.add_argument("--tls", action="store_true", help="Enable MQTT TLS")
     p.add_argument("--self-test", action="store_true")
     args = p.parse_args(argv)
@@ -243,11 +247,21 @@ def main(argv=None):
 
     if not node_id(args.tx_node_id) or node_id(args.tx_node_id) == BROADCAST:
         p.error("--tx-node-id is required (actual transmitting Meshtastic node ID)")
-    if args.enable_tx and (args.tx_channel_index is None or not 0 <= args.tx_channel_index <= 7):
-        p.error("--enable-tx requires --tx-channel-index matching MeshQuest on the TX radio")
-    if args.enable_tx and not (args.downlink_topic.startswith(root_topic_prefix(args.root))
-                               and args.downlink_topic.endswith("/2/json/mqtt/")):
-        p.error("--enable-tx requires --downlink-topic under --root, ending exactly in /2/json/mqtt/ (no NodeID)")
+    if args.enable_tx and args.tx_transport == "mqtt":
+        if args.tx_channel_index is None or not 0 <= args.tx_channel_index <= 7:
+            p.error("--enable-tx with MQTT downlink requires --tx-channel-index")
+        if not (args.downlink_topic.startswith(root_topic_prefix(args.root))
+                and args.downlink_topic.endswith("/2/json/mqtt/")):
+            p.error("MQTT downlink requires --downlink-topic under --root, ending in /2/json/mqtt/ (no NodeID)")
+    dm_sender = None
+    if args.enable_tx and args.tx_transport == "meshmonitor":
+        from gateway_agent.meshmonitor_dm import MeshMonitorDM
+        try:
+            dm_sender = MeshMonitorDM(
+                args.meshmonitor_url, args.meshmonitor_source_id,
+                os.getenv("MM_TOKEN", ""), allow_http_lan=args.allow_http_lan)
+        except ValueError as exc:
+            p.error(str(exc))
     if "/" in args.broker or ":" in args.broker:
         p.error("--broker must be a hostname or IP (port is a separate option)")
 
@@ -272,11 +286,21 @@ def main(argv=None):
         if not args.enable_tx:
             print("[RX-ONLY] would send DM to %s: %s" % (reply.to, reply.text), flush=True)
             return
-        # Explicit destination is mandatory: never accidentally broadcast a reply.
+        if dm_sender is not None:
+            try:
+                request_id = dm_sender.send(reply.to, reply.text)
+                print("DM requested via MeshMonitor to %s id=%s (RF delivery NOT proven)"
+                      % (reply.to, request_id), flush=True)
+            except Exception as exc:
+                # Never print token, request headers, or raw API error responses.
+                print("MeshMonitor DM request failed: %s" % type(exc).__name__,
+                      file=sys.stderr, flush=True)
+            return
+        # MQTT downlink is a separate, opt-in alternative.
         payload = {"from": int(bot.tx_node[1:], 16), "to": int(reply.to[1:], 16),
                    "channel": args.tx_channel_index, "type": "sendtext", "payload": reply.text}
         status = client.publish(downlink, json.dumps(payload, separators=(",", ":")), qos=0, retain=False)
-        print("DM requested for %s; MQTT result=%s (NOT RF delivery proof)"
+        print("DM requested via MQTT downlink to %s; MQTT result=%s (NOT RF delivery proof)"
               % (reply.to, status.rc), flush=True)
 
     def on_connect(client, userdata, flags, reason_code, properties):
