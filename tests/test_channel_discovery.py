@@ -342,9 +342,10 @@ def test_dm_help_and_games_after_named_selection():
     bot = ChannelDiscovery(api, [NAV, PISA])
     open_session(api, bot)
     assert len(api.dms) == 1 and "connesso" in api.dms[0][2]
+    # MeshMonitor returns newest messages first; poll_dms reverses for FIFO.
     api.inboxes[NAV.source_id].extend([
-        incoming_dm(1, text="!help"),
         incoming_dm(2, text="!games"),
+        incoming_dm(1, text="!help"),
     ])
     bot.poll(now=6)
     assert len(api.dms) == 2
