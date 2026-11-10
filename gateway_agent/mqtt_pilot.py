@@ -148,7 +148,7 @@ class PilotBot:
                 if key in self.pending:
                     self.pending[key]["publishers"].add(packet.publisher)
                 return []
-            if packet.recipient != self.tx_node or key in self.seen:
+            if packet.recipient != self.tx_node or packet.publisher != self.tx_node or key in self.seen:
                 return []
             self.seen[key] = now
             if now - self.last_reply[packet.sender] < self.cooldown:
@@ -228,6 +228,7 @@ def main(argv=None):
     p.add_argument("--port", type=int, default=int(os.getenv("MESHQUEST_MQTT_PORT", "1883")))
     p.add_argument("--root", default=os.getenv("MESHQUEST_MQTT_ROOT", "msh/EU_868"))
     p.add_argument("--tx-node-id", default=os.getenv("MESHQUEST_MQTT_TX_NODE_ID", ""))
+    p.add_argument("--allowed-player-node-id", default="", help="Restrict all responses to a single test player")
     p.add_argument("--tx-channel-index", type=int, default=None)
     p.add_argument("--downlink-topic", default="", help="Exact MQTT control topic for the mqtt downlink transport")
     p.add_argument("--tx-transport", choices=("mqtt", "meshmonitor"), default="mqtt")
@@ -247,6 +248,11 @@ def main(argv=None):
 
     if not node_id(args.tx_node_id) or node_id(args.tx_node_id) == BROADCAST:
         p.error("--tx-node-id is required (actual transmitting Meshtastic node ID)")
+    if args.allowed_player_node_id and (node_id(args.allowed_player_node_id) is None
+                                         or node_id(args.allowed_player_node_id) == BROADCAST):
+        p.error("--allowed-player-node-id must be a concrete NodeID")
+    if args.enable_tx and not args.allowed_player_node_id:
+        p.error("--enable-tx in the pilot requires --allowed-player-node-id")
     if args.enable_tx and args.tx_transport == "mqtt":
         if args.tx_channel_index is None or not 0 <= args.tx_channel_index <= 7:
             p.error("--enable-tx with MQTT downlink requires --tx-channel-index")
@@ -321,6 +327,8 @@ def main(argv=None):
             return
         packet = parse_message(msg.topic, msg.payload, root)
         if packet is None:
+            return
+        if args.allowed_player_node_id and packet.sender != node_id(args.allowed_player_node_id):
             return
         # The pilot never logs raw MQTT payloads, channel keys or credentials.
         print("RX MeshQuest from=%s via=%s to=%s command=%s"
