@@ -84,7 +84,7 @@ def test_reject_unexpected_meshmonitor_response():
 
 def test_meshmonitor_tx_requires_token_and_source(capsys):
     from gateway_agent.mqtt_pilot import main
-    args = ["--tx-node-id", "!eb4a6925", "--tx-transport", "meshmonitor",
+    args = ["--tx-node-id", "!eb4a6925", "--allowed-player-node-id", "!e9a04b31", "--tx-transport", "meshmonitor",
             "--enable-tx", "--meshmonitor-url", "http://192.168.10.39:3001",
             "--allow-http-lan"]
     with pytest.raises(SystemExit):
