@@ -109,7 +109,7 @@ def test_mqtt_pilot_self_test(capsys):
 def test_downlink_requires_exact_control_topic_and_no_node_suffix(capsys):
     import pytest
     from gateway_agent.mqtt_pilot import main
-    args = ["--tx-node-id", "!eb4a6925", "--tx-channel-index", "5", "--enable-tx"]
+    args = ["--tx-node-id", "!eb4a6925", "--allowed-player-node-id", "!e9a04b31", "--tx-channel-index", "5", "--enable-tx"]
     with pytest.raises(SystemExit):
         main(args + ["--downlink-topic", "msh/EU_868/IT/Tuscany/Pisa/2/json/mqtt/!eb4a6925"])
     assert "requires --downlink-topic" in capsys.readouterr().err
