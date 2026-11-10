@@ -1,7 +1,7 @@
 """Deterministic safety checks for MQTT-only discovery PoC; no network or RF TX."""
 import json
 
-from gateway_agent.mqtt_pilot import BROADCAST, Packet, PilotBot, parse_message
+from gateway_agent.mqtt_pilot import BROADCAST, Packet, PilotBot, parse_message, topic_info, topic_subscriptions
 
 TOPIC = "msh/EU_868/2/json/MeshQuest/!aaaabbbb"
 
@@ -29,6 +29,32 @@ def test_filter_exact_channel_and_text():
     assert parse_message(TOPIC, b"{bad-json}") is None
     assert parse_message(TOPIC, payload(text="ping")) is None
     assert parse_message(TOPIC, payload(text="!a" * 100)) is None
+
+
+def test_nested_geographic_meshquest_topics_from_pisa_scan():
+    # Observed root: msh/EU_868/IT/Tuscany/Pisa/2/e|json/MeshQuest/<node>.
+    root = "msh/EU_868"
+    protobuf = "msh/EU_868/IT/Tuscany/Pisa/2/e/MeshQuest/!eb4a6925"
+    decoded = protobuf.replace("/e/", "/json/")
+    assert topic_info(protobuf, root) == ("e", "!eb4a6925")
+    assert parse_message(protobuf, payload(), root) is None  # binary, not JSON
+    pkt = parse_message(decoded, payload(), root)
+    assert pkt is not None and pkt.text == "!gateways"
+    assert pkt.publisher == "!eb4a6925"
+
+    assert topic_info(decoded.replace("/MeshQuest/", "/MeshQuest2/"), root) is None
+    assert topic_info(decoded.replace("/MeshQuest/", "/LongFast/"), root) is None
+    assert topic_info("msh/EU_868/2/json/MeshQuest/!aaaabbbb", root) is not None
+    assert topic_info("msh/EU_868/IT/Tuscany/Pisa/2/json/MeshQuest/bad", root) is None
+
+
+def test_specific_subscriptions_cover_geo_depth_without_broad_root_wildcard():
+    subscriptions = topic_subscriptions("msh/EU_868")
+    assert "msh/EU_868/+/json/MeshQuest/+" in subscriptions
+    assert "msh/EU_868/+/+/+/+/json/MeshQuest/+" in subscriptions
+    assert "msh/EU_868/+/+/+/+/e/MeshQuest/+" in subscriptions
+    assert "msh/EU_868/#" not in subscriptions
+    assert len(subscriptions) == 18
 
 
 def test_discovery_aggregates_only_one_responder():
