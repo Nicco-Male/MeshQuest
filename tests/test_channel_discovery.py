@@ -416,3 +416,54 @@ def test_dm_gameplay_is_only_demo():
     api.inboxes[NAV.source_id].append(incoming_dm(1, text="!play salvo"))
     bot.poll(now=7)
     assert "non ancora attivi" in api.dms[-1][2]
+
+
+def test_large_meshmonitor_inbox_not_cut_at_128_kib():
+    """A busy Navacchio inbox previously failed on response.read(131072)."""
+    data = [{"id": "dm_" + str(i), "text": "x" * 2100, "channel": -1}
+            for i in range(85)]
+    payload = json.dumps({"success": True, "data": data}).encode()
+    assert len(payload) > 131072
+
+    class LargeResponse:
+        status = 200
+        def __enter__(self):
+            return self
+        def __exit__(self, *unused):
+            return False
+        def read(self, size):
+            # Behaves like a real HTTP response and respects read(size).
+            return payload[:size]
+
+    urls = []
+    def fake_open(req, timeout):
+        urls.append(req.full_url)
+        return LargeResponse()
+    api = MeshMonitorAPI("https://mesh.example", "token", opener=fake_open)
+    assert len(api.read_dms(NAV)) == 85
+    assert "channel=-1" in urls[0]
+    assert "limit=50" in urls[0]
+
+
+def test_malformed_json_raises_safe_diagnostic_without_body_or_token():
+    class BadResponse:
+        status = 200
+        headers = {"Content-Type": "text/plain"}
+        def __enter__(self):
+            return self
+        def __exit__(self, *unused):
+            return False
+        def read(self, size):
+            return b"not-json-token-secret"
+
+    def fake_open(req, timeout):
+        return BadResponse()
+
+    api = MeshMonitorAPI("https://mesh.example", "Bearer-secret", opener=fake_open)
+    import pytest
+    with pytest.raises(ValueError) as caught:
+        api.read_dms(NAV)
+    text = str(caught.value)
+    assert "Invalid MeshMonitor JSON" in text
+    assert "content_type=text/plain" in text
+    assert "Bearer-secret" not in text and "token-secret" not in text
