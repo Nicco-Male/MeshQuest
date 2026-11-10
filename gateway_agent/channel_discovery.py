@@ -30,6 +30,9 @@ MAX_GATEWAYS = 8
 POLL_SECONDS = 2
 COOLDOWN_SECONDS = 15
 DISCOVERY_TTL_SECONDS = 120
+SESSION_TTL_SECONDS = 30 * 60
+DM_RESPONSE_INTERVAL_SECONDS = 2.0
+MAX_COMMAND_QUEUE = 32
 
 
 @dataclass(frozen=True)
@@ -105,6 +108,12 @@ class MeshMonitorAPI:
 
     def read_channel(self, gateway):
         q = urlencode({"channel": gateway.channel, "limit": 100})
+        return self.request("/api/v1/sources/" + gateway.source_id + "/messages?" + q).get("data", [])
+
+    def read_dms(self, gateway):
+        # Meshtastic direct messages are stored by MeshMonitor as channel -1.
+        # This is a read-only per-source v1 query; no TCP/LoRa side connection.
+        q = urlencode({"channel": -1, "limit": 100})
         return self.request("/api/v1/sources/" + gateway.source_id + "/messages?" + q).get("data", [])
 
     def broadcast(self, gateway, text):
@@ -194,6 +203,39 @@ def make_dm_greeting(gateway):
     return "MeshQuest connesso a %s. Comandi: !help, !games" % gateway.name
 
 
+def dm_command_reply(text, gateway):
+    """Tiny, truthful pilot command menu; no game credits or state changes."""
+    command = text.strip().casefold()
+    if command in ("!help", "!menu"):
+        return "MQ %s: !games lista giochi; !play salvo demo; !status; !exit" % gateway.name
+    if command in ("!games", "!listgame"):
+        return "MQ giochi: Salvo (demo), Exploration (demo). Usa !play salvo"
+    if command in ("!play salvo", "!join salvo"):
+        return "Salvo demo disponibile: gameplay radio e punti non ancora attivi."
+    if command == "!status":
+        return "MQ %s: collegato. Modalita demo, nessun punto assegnato." % gateway.name
+    if command == "!exit":
+        return "MQ: sessione chiusa. Rientra con !gateways sul canale."
+    if command.startswith("!"):
+        return "MQ: comando sconosciuto. Usa !help."
+    return None
+
+
+def is_incoming_dm(message, gateway):
+    """Only a new direct text command addressed to this exact radio."""
+    if not isinstance(message, dict) or message.get("channel") != -1:
+        return False
+    if message.get("viaMqtt") is True or message.get("portnum") not in (1, None):
+        return False
+    sender = node_id(message.get("fromNodeId"))
+    if sender is None or sender in (BROADCAST, gateway.node_id):
+        return False
+    if node_id(message.get("toNodeId")) != gateway.node_id:
+        return False
+    text = message.get("text")
+    return isinstance(text, str) and 0 < len(text) <= 80 and text.strip().startswith("!")
+
+
 class ChannelDiscovery:
     def __init__(self, api, gateways, dry_run=False, allowed_player=None,
                  cooldown=COOLDOWN_SECONDS):
@@ -215,6 +257,11 @@ class ChannelDiscovery:
         self.queued_dm = set()
         self.last_dm = {}
         self.gateways_by_name = {}
+        self.sessions = {}
+        self.dm_baselined = set()
+        self.dm_seen = {g.source_id: set() for g in gateways}
+        self.pending_commands = []
+        self.last_command_scheduled = {}
         for gateway in gateways:
             self.gateways_by_name.setdefault(gateway.name.strip().casefold(), []).append(gateway)
 
@@ -287,6 +334,78 @@ class ChannelDiscovery:
             if now - stamp <= DISCOVERY_TTL_SECONDS
         }
         self.flush(now)
+        self.poll_dms(now)
+
+    def poll_dms(self, now):
+        for gateway in self.gateways:
+            try:
+                messages = self.api.read_dms(gateway)
+                if not isinstance(messages, list):
+                    raise ValueError("Invalid DM messages list")
+            except (HTTPError, URLError, TimeoutError, RuntimeError, ValueError) as exc:
+                print("DM read failed from %s: %s" % (gateway.name, type(exc).__name__),
+                      file=sys.stderr, flush=True)
+                continue
+            seen = self.dm_seen[gateway.source_id]
+            current = {k for m in messages if (k := message_key(m)) is not None}
+            if gateway.source_id not in self.dm_baselined:
+                seen.update(current)
+                self.dm_baselined.add(gateway.source_id)
+                print("Watching DM %s (history ignored)" % gateway.name, flush=True)
+                continue
+            for message in reversed(messages):
+                key = message_key(message)
+                if key is None or key in seen:
+                    continue
+                seen.add(key)
+                if not is_incoming_dm(message, gateway):
+                    continue
+                player = node_id(message["fromNodeId"])
+                session_key = (gateway.source_id, player)
+                if self.allowed_player and self.allowed_player != player:
+                    continue
+                active_until = self.sessions.get(session_key, -1e12)
+                if now >= active_until:
+                    continue
+                reply = dm_command_reply(message["text"], gateway)
+                if reply is None:
+                    continue
+                if len(self.pending_commands) >= MAX_COMMAND_QUEUE:
+                    print("DM command queue full; request ignored", file=sys.stderr, flush=True)
+                    continue
+                due = max(now, self.last_command_scheduled.get(session_key, -1e12)
+                          + DM_RESPONSE_INTERVAL_SECONDS)
+                self.last_command_scheduled[session_key] = due
+                self.seq += 1
+                is_exit = message["text"].strip().casefold() == "!exit"
+                heapq.heappush(self.pending_commands,
+                               (due, self.seq, gateway, player, reply, is_exit))
+                if is_exit:
+                    self.sessions.pop(session_key, None)
+                else:
+                    self.sessions[session_key] = now + SESSION_TTL_SECONDS
+                print("DM command %s <- %s %s; queued" %
+                      (gateway.name, player, message["text"].strip().casefold()), flush=True)
+            if len(seen) > 1000:
+                self.dm_seen[gateway.source_id] = current
+        self.flush_commands(now)
+
+    def flush_commands(self, now):
+        while self.pending_commands and self.pending_commands[0][0] <= now:
+            _, _, gateway, player, reply, is_exit = heapq.heappop(self.pending_commands)
+            if not is_exit and self.sessions.get((gateway.source_id, player), -1e12) <= now:
+                continue
+            if self.dry_run:
+                print("DRY-RUN DM reply %s -> %s: %s" %
+                      (gateway.name, player, reply), flush=True)
+                continue
+            try:
+                request_id = self.api.dm(gateway, player, reply)
+                print("DM reply accepted %s -> %s id=%s (delivery unverified)" %
+                      (gateway.name, player, request_id), flush=True)
+            except (HTTPError, URLError, TimeoutError, RuntimeError, ValueError) as exc:
+                print("DM reply failed %s: %s" % (gateway.name, type(exc).__name__),
+                      file=sys.stderr, flush=True)
 
     def flush(self, now=None):
         now = time.monotonic() if now is None else now
@@ -318,9 +437,11 @@ class ChannelDiscovery:
             if self.dry_run:
                 print("DRY-RUN %s -> DM %s: %s" % (gateway.name, player, greeting),
                       flush=True)
+                self.sessions[key] = now + SESSION_TTL_SECONDS
                 continue
             try:
                 request_id = self.api.dm(gateway, player, greeting)
+                self.sessions[key] = now + SESSION_TTL_SECONDS
                 print("DM accepted %s -> %s id=%s (delivery unverified)" %
                       (gateway.name, player, request_id), flush=True)
             except (HTTPError, URLError, TimeoutError, RuntimeError, ValueError) as exc:
