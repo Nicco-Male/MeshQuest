@@ -358,11 +358,10 @@ def test_dm_help_and_games_after_named_selection():
     assert len(api.dms) == 3
 
 
-def test_dm_ignored_for_unselected_gateway_or_wrong_destination():
+def test_dm_ignores_wrong_destination_and_invalid_traffic():
     api = API()
     bot = ChannelDiscovery(api, [NAV, PISA])
     open_session(api, bot)
-    api.inboxes[PISA.source_id].append(incoming_dm(1, gateway=PISA))
     api.inboxes[NAV.source_id].extend([
         incoming_dm(2, text="!help", toNodeId=PISA.node_id),
         incoming_dm(3, text="!help", fromNodeId=NAV.node_id),
@@ -376,7 +375,7 @@ def test_dm_ignored_for_unselected_gateway_or_wrong_destination():
     assert len(api.dms) == 1
 
 
-def test_session_expires_and_dm_exit_rejects_followups():
+def test_dm_exit_closes_session_and_next_direct_command_reopens_it():
     api = API()
     bot = ChannelDiscovery(api, [NAV])
     open_session(api, bot)
@@ -385,7 +384,9 @@ def test_session_expires_and_dm_exit_rejects_followups():
     assert len(api.dms) == 2 and "chiusa" in api.dms[-1][2]
     api.inboxes[NAV.source_id].append(incoming_dm(2, text="!games"))
     bot.poll(now=9)
-    assert len(api.dms) == 2
+    assert len(api.dms) == 3
+    assert "Salvo" in api.dms[-1][2]
+    assert (NAV.source_id, "!e9a04b31") in bot.sessions
 
 
 def test_no_dm_without_first_greeting_send_success():
@@ -467,3 +468,73 @@ def test_malformed_json_raises_safe_diagnostic_without_body_or_token():
     assert "Invalid MeshMonitor JSON" in text
     assert "content_type=text/plain" in text
     assert "Bearer-secret" not in text and "token-secret" not in text
+
+
+def test_direct_dm_help_works_without_discovery_or_use():
+    api = API()
+    bot = ChannelDiscovery(api, [NAV, PISA], allowed_player="!e9a04b31")
+    bot.poll(now=0)  # baseline old DM and channel history
+    api.inboxes[NAV.source_id].append(incoming_dm(901, text="!help"))
+    bot.poll(now=1)
+    assert len(api.dms) == 1
+    assert api.dms[0][0] == NAV.source_id
+    assert api.dms[0][1] == "!e9a04b31"
+    assert "!games" in api.dms[0][2]
+    assert bot.sessions[(NAV.source_id, "!e9a04b31")] > 1
+    assert not api.sent
+
+
+def test_direct_dm_games_to_pisa_works_without_channel_selection():
+    api = API()
+    bot = ChannelDiscovery(api, [NAV, PISA])
+    bot.poll(now=0)
+    api.inboxes[PISA.source_id].append(incoming_dm(902, gateway=PISA, text="!games"))
+    bot.poll(now=1)
+    assert api.dms == [
+        (PISA.source_id, "!e9a04b31",
+         "MQ giochi: Salvo (demo), Exploration (demo). Usa !play salvo")
+    ]
+    assert (NAV.source_id, "!e9a04b31") not in bot.sessions
+    assert (PISA.source_id, "!e9a04b31") in bot.sessions
+
+
+def test_direct_dm_respects_allowed_player_and_does_not_autostart_on_bad_traffic():
+    api = API()
+    bot = ChannelDiscovery(api, [NAV], allowed_player="!e9a04b31")
+    bot.poll(now=0)
+    api.inboxes[NAV.source_id].extend([
+        incoming_dm(1, sender="!12345678", text="!help"),
+        incoming_dm(2, text="!help", toNodeId=PISA.node_id),
+        incoming_dm(3, text="!help", channel=5),
+        incoming_dm(4, text="!help", viaMqtt=True),
+        incoming_dm(5, text="!help", fromNodeId=NAV.node_id),
+        incoming_dm(6, text="hello"),
+    ])
+    bot.poll(now=2)
+    assert api.dms == []
+    assert bot.sessions == {}
+
+
+def test_direct_dm_reopens_after_idle_expiry():
+    api = API()
+    bot = ChannelDiscovery(api, [NAV])
+    bot.poll(now=0)
+    api.inboxes[NAV.source_id].append(incoming_dm(1, text="!help"))
+    bot.poll(now=1)
+    assert len(api.dms) == 1
+    api.inboxes[NAV.source_id].append(incoming_dm(2, text="!games"))
+    bot.poll(now=2000)
+    assert len(api.dms) == 2
+    assert "Salvo" in api.dms[-1][2]
+
+
+def test_initial_direct_dm_failed_send_does_not_confirm_session():
+    api = API()
+    def fail(gateway, player, text):
+        raise RuntimeError("TX disabled")
+    api.dm = fail
+    bot = ChannelDiscovery(api, [NAV])
+    bot.poll(now=0)
+    api.inboxes[NAV.source_id].append(incoming_dm(1, text="!help"))
+    bot.poll(now=1)
+    assert bot.sessions == {}
