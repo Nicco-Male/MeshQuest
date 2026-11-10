@@ -259,6 +259,10 @@ def main(argv=None):
         packet = parse_message(msg.topic, msg.payload, root)
         if packet is None:
             return
+        # The pilot never logs raw MQTT payloads, channel keys or credentials.
+        print("RX MeshQuest from=%s via=%s to=%s command=%s"
+              % (packet.sender, packet.publisher, packet.recipient, packet.text),
+              flush=True)
         replies = bot.ingest(packet)
         for reply in replies:
             respond(reply)
