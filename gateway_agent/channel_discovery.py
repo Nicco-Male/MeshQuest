@@ -3,7 +3,9 @@
 
 The daemon checks each connected TCP radio's received channel messages (not
 MQTT JSON echoes). Every radio with the exact MeshQuest channel independently
-answers a NEW !gateways broadcast on that same channel.
+answers a NEW !gateways broadcast on that same channel. After the player
+broadcasts !use <gateway-name>, only the named gateway that recently heard
+their discovery command initiates a private DM.
 
 Transmission is enabled when this command is run; --dry-run disables it.
 No Meshtastic TCP client is opened, so MeshMonitor keeps ownership of port 4403.
@@ -27,6 +29,7 @@ CHANNEL_NAME = "MeshQuest"
 MAX_GATEWAYS = 8
 POLL_SECONDS = 2
 COOLDOWN_SECONDS = 15
+DISCOVERY_TTL_SECONDS = 120
 
 
 @dataclass(frozen=True)
@@ -117,6 +120,21 @@ class MeshMonitorAPI:
             raise ValueError("Unexpected channel broadcast response")
         return data.get("requestId")
 
+    def dm(self, gateway, player, text):
+        # A DM is selected by toNodeId alone, with NO 'channel' field.
+        if node_id(player) in (None, BROADCAST):
+            raise ValueError("Invalid DM destination")
+        if not isinstance(text, str) or not text or len(text.encode("utf-8")) > 120:
+            raise ValueError("DM greeting exceeds 120 UTF-8 bytes")
+        data = self.request("/api/v1/sources/" + gateway.source_id + "/messages", {
+            "text": text,
+            "toNodeId": player,
+        }).get("data", {})
+        if (not isinstance(data, dict) or data.get("messageCount") != 1
+                or data.get("channel") != -1 or data.get("toNodeId") != player):
+            raise ValueError("Unexpected DM response")
+        return data.get("requestId")
+
 
 def message_key(message):
     if not isinstance(message, dict):
@@ -128,13 +146,9 @@ def message_key(message):
     return None
 
 
-def is_rf_discovery(message, gateway):
-    """Only consider fresh (first seen after startup) radio-like channel records.
-
-    viaMqtt=true disqualifies the observation; RSSI/SNR provide evidence of RF
-    reception by the gateway, but they do NOT prove a direct one-hop link.
-    """
-    if not isinstance(message, dict) or message.get("text", "").strip().lower() != COMMAND:
+def is_rf_channel_command(message, gateway):
+    """Require fresh radio metadata from this physical source, not MQTT."""
+    if not isinstance(message, dict):
         return False
     if message.get("channel") != gateway.channel or message.get("viaMqtt") is True:
         return False
@@ -149,9 +163,35 @@ def is_rf_discovery(message, gateway):
     return True
 
 
+def command_text(message):
+    text = message.get("text")
+    return text.strip().casefold() if isinstance(text, str) else ""
+
+
+def is_rf_discovery(message, gateway):
+    return is_rf_channel_command(message, gateway) and command_text(message) == COMMAND
+
+
+def selected_gateway_name(message, gateway):
+    """Only a named selection, never a NodeID or numeric shortcut."""
+    if not is_rf_channel_command(message, gateway):
+        return None
+    command = command_text(message)
+    if not command.startswith("!use "):
+        return None
+    name = command[5:].strip()
+    if not name or name.startswith("!") or len(name) > 60:
+        return None
+    return name
+
+
 def make_reply(gateway):
-    # This is intentionally a CHANNEL broadcast, not a private DM.
-    return "MQ RX %s %s" % (gateway.name, gateway.node_id)
+    # Names only: never expose NodeIDs in channel protocol.
+    return "MQ RX %s" % gateway.name
+
+
+def make_dm_greeting(gateway):
+    return "MeshQuest connesso a %s. Comandi: !help, !games" % gateway.name
 
 
 class ChannelDiscovery:
@@ -170,6 +210,13 @@ class ChannelDiscovery:
         self.pending = []
         self.queued = set()
         self.seq = 0
+        self.discovery = {}
+        self.pending_dm = []
+        self.queued_dm = set()
+        self.last_dm = {}
+        self.gateways_by_name = {}
+        for gateway in gateways:
+            self.gateways_by_name.setdefault(gateway.name.strip().casefold(), []).append(gateway)
 
     def poll(self, now=None):
         now = time.monotonic() if now is None else now
@@ -195,12 +242,31 @@ class ChannelDiscovery:
                 if key is None or key in known:
                     continue
                 known.add(key)
-                if not is_rf_discovery(message, gateway):
+                if not is_rf_channel_command(message, gateway):
                     continue
                 player = node_id(message.get("fromNodeId"))
                 if self.allowed_player and player != self.allowed_player:
                     continue
+                if not is_rf_discovery(message, gateway):
+                    name = selected_gateway_name(message, gateway)
+                    if name is not None:
+                        # Only the named, unique gateway that heard the
+                        # selection and recently heard this player can DM.
+                        candidates = self.gateways_by_name.get(name, [])
+                        key_dm = (gateway.source_id, player)
+                        if (len(candidates) == 1 and candidates[0] == gateway
+                                and key_dm in self.discovery
+                                and 0 <= now - self.discovery[key_dm] <= DISCOVERY_TTL_SECONDS
+                                and now - self.last_dm.get(key_dm, -1e12) >= self.cooldown
+                                and key_dm not in self.queued_dm):
+                            self.seq += 1
+                            heapq.heappush(self.pending_dm, (now + 0.5, self.seq, gateway, player))
+                            self.queued_dm.add(key_dm)
+                            print("Selection %s <- %s; first DM queued" % (gateway.name, player),
+                                  flush=True)
+                    continue
                 last_key = (gateway.source_id, player)
+                self.discovery[last_key] = now
                 if now - self.last.get(last_key, -1e12) < self.cooldown:
                     continue
                 if last_key in self.queued:
@@ -216,6 +282,10 @@ class ChannelDiscovery:
             # plus any queued IDs, rather than unbounded packet history.
             if len(known) > 1000:
                 self.seen[gateway.source_id] = current | {k for k in known if k in current}
+        self.discovery = {
+            key: stamp for key, stamp in self.discovery.items()
+            if now - stamp <= DISCOVERY_TTL_SECONDS
+        }
         self.flush(now)
 
     def flush(self, now=None):
@@ -236,10 +306,30 @@ class ChannelDiscovery:
             except (HTTPError, URLError, TimeoutError, RuntimeError, ValueError) as exc:
                 print("TX failed %s: %s" % (gateway.name, type(exc).__name__),
                       file=sys.stderr, flush=True)
+        while self.pending_dm and self.pending_dm[0][0] <= now:
+            _, _, gateway, player = heapq.heappop(self.pending_dm)
+            key = (gateway.source_id, player)
+            self.queued_dm.discard(key)
+            # If discovery expired while queued, don't attempt a DM.
+            if now - self.discovery.get(key, -1e12) > DISCOVERY_TTL_SECONDS:
+                continue
+            self.last_dm[key] = now
+            greeting = make_dm_greeting(gateway)
+            if self.dry_run:
+                print("DRY-RUN %s -> DM %s: %s" % (gateway.name, player, greeting),
+                      flush=True)
+                continue
+            try:
+                request_id = self.api.dm(gateway, player, greeting)
+                print("DM accepted %s -> %s id=%s (delivery unverified)" %
+                      (gateway.name, player, request_id), flush=True)
+            except (HTTPError, URLError, TimeoutError, RuntimeError, ValueError) as exc:
+                print("DM failed %s: %s" % (gateway.name, type(exc).__name__),
+                      file=sys.stderr, flush=True)
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(description="MeshQuest: each RF-hearing gateway broadcasts its own reply")
+    parser = argparse.ArgumentParser(description="MeshQuest: named gateway discovery and first DM")
     parser.add_argument("--meshmonitor-url", default="http://192.168.10.39:3001")
     parser.add_argument("--allow-http-lan", action="store_true",
                         help="Allow token over plaintext HTTP only to a private LAN IP")
