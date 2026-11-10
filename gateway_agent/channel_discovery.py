@@ -14,6 +14,7 @@ import argparse
 import heapq
 import json
 import os
+import sqlite3
 import sys
 import time
 from dataclasses import dataclass
@@ -23,6 +24,7 @@ from urllib.request import Request, urlopen
 
 from gateway_agent.meshmonitor_dm import validate_base_url
 from gateway_agent.mqtt_pilot import BROADCAST, node_id
+from meshquest.salvo_radio import SalvoRadio
 
 COMMAND = "!gateways"
 CHANNEL_NAME = "MeshQuest"
@@ -251,10 +253,11 @@ def is_incoming_dm(message, gateway):
 
 class ChannelDiscovery:
     def __init__(self, api, gateways, dry_run=False, allowed_player=None,
-                 cooldown=COOLDOWN_SECONDS):
+                 cooldown=COOLDOWN_SECONDS, salvo_game=None):
         self.api = api
         self.gateways = gateways
         self.dry_run = dry_run
+        self.salvo_game = salvo_game
         self.allowed_player = node_id(allowed_player) if allowed_player else None
         if allowed_player and (self.allowed_player is None or self.allowed_player == BROADCAST):
             raise ValueError("Invalid allowed-player NodeID")
@@ -381,7 +384,22 @@ class ChannelDiscovery:
                 # even without !gateways / !use on the channel.
                 # Each source has an independent conversation; only actual
                 # incoming private text addressed to this radio qualifies.
-                reply = dm_command_reply(message["text"], gateway)
+                # The campaign state resides on the *central* MeshQuest server,
+                # shared across gateways; the Berry radios only relay DMs.
+                reply = None
+                if self.salvo_game is not None:
+                    try:
+                        reply = self.salvo_game.handle(player, message["text"])
+                    except (sqlite3.Error, OSError, ValueError) as exc:
+                        print("Salvo state error (%s)" % type(exc).__name__,
+                              file=sys.stderr, flush=True)
+                        continue
+                if reply is None:
+                    if self.salvo_game is not None and message["text"].strip().casefold() in (
+                            "!games", "!listgame"):
+                        reply = "MQ: Salvo giocabile, Exploration demo. !play salvo"
+                    else:
+                        reply = dm_command_reply(message["text"], gateway)
                 if reply is None:
                     continue
                 active_until = self.sessions.get(session_key, -1e12)
@@ -482,6 +500,8 @@ def main(argv=None):
                         help="Optional pilot filter; only reply to this NodeID")
     parser.add_argument("--only-sources", default="", help="Comma-separated source UUIDs; defaults to all connected sources with MeshQuest")
     parser.add_argument("--poll-seconds", type=float, default=POLL_SECONDS)
+    parser.add_argument("--salvo-db", default=os.getenv("MESHQUEST_SALVO_DB", "./salvo-radio.db"),
+                        help="Persistent central Salvo radio pilot SQLite database")
     args = parser.parse_args(argv)
     if not 0.5 <= args.poll_seconds <= 30:
         parser.error("--poll-seconds must be between 0.5 and 30")
@@ -492,9 +512,11 @@ def main(argv=None):
         gateways = api.discover(only_ids=ids)
         if not gateways:
             parser.error("No connected MeshMonitor TCP source with exact MeshQuest channel")
+        game = SalvoRadio(args.salvo_db)
         bot = ChannelDiscovery(api, gateways, dry_run=args.dry_run,
-                               allowed_player=args.allowed_player_node_id)
-    except (HTTPError, URLError, ValueError, RuntimeError) as exc:
+                               allowed_player=args.allowed_player_node_id,
+                               salvo_game=game)
+    except (HTTPError, URLError, ValueError, RuntimeError, OSError, sqlite3.Error) as exc:
         parser.error("%s (%s)" % (type(exc).__name__, "check MeshMonitor URL/token/config"))
     print("MeshQuest discovery TX=%s gateways=%s" %
           ("OFF" if args.dry_run else "ON", len(gateways)), flush=True)
