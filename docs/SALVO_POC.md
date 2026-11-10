@@ -1,7 +1,12 @@
 # Salvo: Node Conquest — Proof of Concept (2026-11-09)
 
-> **Status:** API-based, **admin-controlled simulation only**. No radio commands, no radio transmissions,
-> no real device takeover, no authorization based solely on a claimed Meshtastic NodeID.
+> **Scope of this document:** SQLAlchemy/FastAPI admin-controlled Salvo simulation.
+> This legacy simulation remains admin-only. A **separate, playable closed-alpha
+> radio pilot** now exists on the central CT 151 server: see
+> [Salvo via DM — Capitolo 1 (Italiano)](SALVO_RADIO_CHAPTER1.it.md).
+> The pilot saves fictional sector captures and Salvo credits in a separate
+> SQLite database, not in the admin simulation's tables. Neither version
+> changes real Meshtastic nodes or awards Exploration XP.
 
 ## Design decisions for the closed Pisa pilot
 
