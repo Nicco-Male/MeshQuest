@@ -218,6 +218,10 @@ class PilotBot:
         return replies
 
 
+def root_topic_prefix(root):
+    return root.strip("/") + "/"
+
+
 def main(argv=None):
     p = argparse.ArgumentParser(description="MeshQuest MQTT receive/DM pilot (RX-only by default)")
     p.add_argument("--broker", default=os.getenv("MESHQUEST_MQTT_HOST", "127.0.0.1"))
@@ -225,6 +229,7 @@ def main(argv=None):
     p.add_argument("--root", default=os.getenv("MESHQUEST_MQTT_ROOT", "msh/EU_868"))
     p.add_argument("--tx-node-id", default=os.getenv("MESHQUEST_MQTT_TX_NODE_ID", ""))
     p.add_argument("--tx-channel-index", type=int, default=None)
+    p.add_argument("--downlink-topic", default="", help="Exact gateway's MQTT JSON control topic; must end in /2/json/mqtt/ (no NodeID suffix)")
     p.add_argument("--enable-tx", action="store_true", help="Send real DMs via Meshtastic JSON MQTT downlink")
     p.add_argument("--tls", action="store_true", help="Enable MQTT TLS")
     p.add_argument("--self-test", action="store_true")
@@ -240,6 +245,9 @@ def main(argv=None):
         p.error("--tx-node-id is required (actual transmitting Meshtastic node ID)")
     if args.enable_tx and (args.tx_channel_index is None or not 0 <= args.tx_channel_index <= 7):
         p.error("--enable-tx requires --tx-channel-index matching MeshQuest on the TX radio")
+    if args.enable_tx and not (args.downlink_topic.startswith(root_topic_prefix(args.root))
+                               and args.downlink_topic.endswith("/2/json/mqtt/")):
+        p.error("--enable-tx requires --downlink-topic under --root, ending exactly in /2/json/mqtt/ (no NodeID)")
     if "/" in args.broker or ":" in args.broker:
         p.error("--broker must be a hostname or IP (port is a separate option)")
 
@@ -258,7 +266,7 @@ def main(argv=None):
         client.tls_set()
     root = args.root.strip("/")
     subscribe_topics = topic_subscriptions(root)
-    downlink = root + "/2/json/mqtt/"
+    downlink = args.downlink_topic
 
     def respond(reply):
         if not args.enable_tx:
