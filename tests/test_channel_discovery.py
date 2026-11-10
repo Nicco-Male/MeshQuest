@@ -24,6 +24,7 @@ class API:
         self.rows = {NAV.source_id: [], PISA.source_id: []}
         self.sent = []
         self.dms = []
+        self.inboxes = {NAV.source_id: [], PISA.source_id: []}
 
     def dm(self, gateway, player, text):
         self.dms.append((gateway.source_id, player, text))
@@ -31,6 +32,9 @@ class API:
 
     def read_channel(self, gateway):
         return list(self.rows[gateway.source_id])
+
+    def read_dms(self, gateway):
+        return list(self.inboxes[gateway.source_id])
 
     def broadcast(self, gateway, text):
         self.sent.append((gateway.source_id, gateway.channel, text))
@@ -311,3 +315,103 @@ def test_dm_and_broadcast_dry_run_both_blocked():
     bot.poll(now=5)
     bot.flush(now=7)
     assert api.sent == [] and api.dms == []
+
+
+def incoming_dm(i, gateway=NAV, sender="!e9a04b31", text="!help", **kwargs):
+    data = {
+        "id": "dm_" + str(i), "fromNodeId": sender,
+        "toNodeId": gateway.node_id, "channel": -1, "portnum": 1,
+        "text": text, "viaMqtt": False,
+    }
+    data.update(kwargs)
+    return data
+
+
+def open_session(api, bot, gateway=NAV):
+    bot.poll(now=0)  # Establish channel AND DM history baseline.
+    api.rows[gateway.source_id].append(msg(300))
+    bot.poll(now=1)
+    bot.flush(now=3)
+    api.rows[gateway.source_id].append(msg(301, text="!use " + gateway.name.lower()))
+    bot.poll(now=4)
+    bot.flush(now=5)  # DM accepted; session now active.
+
+
+def test_dm_help_and_games_after_named_selection():
+    api = API()
+    bot = ChannelDiscovery(api, [NAV, PISA])
+    open_session(api, bot)
+    assert len(api.dms) == 1 and "connesso" in api.dms[0][2]
+    api.inboxes[NAV.source_id].extend([
+        incoming_dm(1, text="!help"),
+        incoming_dm(2, text="!games"),
+    ])
+    bot.poll(now=6)
+    assert len(api.dms) == 2
+    assert "!games" in api.dms[-1][2]
+    bot.poll(now=9)
+    assert len(api.dms) == 3
+    assert "Salvo" in api.dms[-1][2]
+    assert all(x[0] == NAV.source_id for x in api.dms)
+    bot.poll(now=20)
+    assert len(api.dms) == 3
+
+
+def test_dm_ignored_for_unselected_gateway_or_wrong_destination():
+    api = API()
+    bot = ChannelDiscovery(api, [NAV, PISA])
+    open_session(api, bot)
+    api.inboxes[PISA.source_id].append(incoming_dm(1, gateway=PISA))
+    api.inboxes[NAV.source_id].extend([
+        incoming_dm(2, text="!help", toNodeId=PISA.node_id),
+        incoming_dm(3, text="!help", fromNodeId=NAV.node_id),
+        incoming_dm(4, text="!help", viaMqtt=True),
+        incoming_dm(5, text="!help", channel=5),
+        incoming_dm(6, text="!help", portnum=5),
+        incoming_dm(7, text="hi"),
+    ])
+    bot.poll(now=7)
+    bot.poll(now=9)
+    assert len(api.dms) == 1
+
+
+def test_session_expires_and_dm_exit_rejects_followups():
+    api = API()
+    bot = ChannelDiscovery(api, [NAV])
+    open_session(api, bot)
+    api.inboxes[NAV.source_id].append(incoming_dm(1, text="!exit"))
+    bot.poll(now=6)
+    assert len(api.dms) == 2 and "chiusa" in api.dms[-1][2]
+    api.inboxes[NAV.source_id].append(incoming_dm(2, text="!games"))
+    bot.poll(now=9)
+    assert len(api.dms) == 2
+
+
+def test_no_dm_without_first_greeting_send_success():
+    api = API()
+    def unavailable(gateway, player, text):
+        raise RuntimeError("API unavailable")
+    api.dm = unavailable
+    bot = ChannelDiscovery(api, [NAV])
+    open_session(api, bot)
+    api.inboxes[NAV.source_id].append(incoming_dm(1, text="!help"))
+    bot.poll(now=8)
+    assert not bot.sessions
+
+
+def test_old_dms_never_replied_after_restart():
+    api = API()
+    api.inboxes[NAV.source_id].append(incoming_dm(1, text="!games"))
+    bot = ChannelDiscovery(api, [NAV])
+    open_session(api, bot)
+    bot.poll(now=6)
+    assert len(api.dms) == 1
+
+
+def test_dm_gameplay_is_only_demo():
+    api = API()
+    bot = ChannelDiscovery(api, [NAV])
+    open_session(api, bot)
+    api.inboxes[NAV.source_id].append(incoming_dm(1, text="!play salvo"))
+    bot.poll(now=7)
+    assert "non ancora attivi" in api.dms[-1][2]
