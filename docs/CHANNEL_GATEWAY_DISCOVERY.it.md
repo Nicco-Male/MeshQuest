@@ -17,8 +17,8 @@ messaggio in **broadcast sullo stesso canale MeshQuest**:
 
 ```text
 !gateways
-MQ RX Navacchio !eb4a6925
-MQ RX Pisa !847eb6bb
+MQ RX Navacchio
+MQ RX Pisa
 ```
 
 Questi due messaggi sono esempi: la risposta di Pisa compare **solo**
@@ -27,8 +27,32 @@ configurazione MeshQuest sulla sorgente è valida. Non viene fabbricata una
 lista di risposte per gateway che non hanno ricevuto.
 
 L'utente vede nella propria radio quali trasmettitori riesce a ricevere
-in risposta. RSSI/SNR non provano che F e il gateway siano collegati
+in risposta. I NodeID rimangono interni al server e non devono essere
+digitati. RSSI/SNR non provano che F e il gateway siano collegati
 direttamente **a un solo hop**: in Meshtastic esistono relay.
+
+### Selezione per nome e primo DM
+
+Il giocatore invia **sullo stesso canale**:
+
+```text
+!use navacchio
+```
+
+Il server risolve il nome esatto (ignorando maiuscole e minuscole).
+Se due sorgenti hanno lo stesso nome, non viene inviato alcun DM.
+Il gateway scelto deve avere ricevuto via radio **sia** `!gateways`
+(negli ultimi 120 secondi) **sia** `!use navacchio`.
+Solo allora Navacchio invia il primo messaggio **diretto**:
+
+```text
+MeshQuest connesso a Navacchio. Comandi: !help, !games
+```
+
+Per Pisa il comando è `!use pisa`, con risposta privata da Pisa.
+Il cooldown dei DM è di 15 secondi per giocatore e gateway.
+La ricezione e il primo DM sono implementati nel pilot; l'elaborazione
+dei successivi comandi di gioco rimane una fase separata.
 
 ## Esecuzione sul CT 151
 
@@ -55,6 +79,8 @@ Non usa altre radio e non modifica i canali.
 
 Attendi che compaia `Watching ... (history ignored)` per tutti i gateway.
 A quel punto manda `!gateways` una sola volta sul canale MeshQuest da F.
+Dopo aver ricevuto le risposte manda `!use navacchio` sul canale.
+Verifica poi il primo DM proveniente da Navacchio sul nodo F.
 
 Se vuoi limitare il primo test a Navacchio e Pisa:
 
@@ -91,7 +117,12 @@ Lettura sorgenti e radio:
 
 Trasmissione del gateway specifico:
 `POST /api/v1/sources/<uuid>/messages` con
-`{"channel":N,"text":"MQ RX <name> <nodeid>"}`.
+`{"channel":N,"text":"MQ RX <name>"}`.
+
+Primo DM, dopo `!use <name>`:
+`POST /api/v1/sources/<uuid>/messages` con
+`{"toNodeId":"<player nodeid>","text":"MeshQuest connesso a <name>..."}`.
+Il NodeID appare soltanto nel payload interno della richiesta API.
 
 Il testo broadcast non contiene `toNodeId` (quel campo serve invece
 per il DM v1). Non viene usato l'endpoint legacy `/api/messages/send`.
@@ -109,4 +140,4 @@ per il DM v1). Non viene usato l'endpoint legacy `/api/messages/send`.
 - Nessun punto, account o stato di gioco viene modificato.
 - L'implementazione è un pilot del server centrale. In produzione,
   le gateway Berry dovranno riportare eventi RX al server MeshQuest con
-  token proprio; il gameplay DM è uno step separato.
+  token proprio; il gameplay dopo il primo DM è uno step separato.
