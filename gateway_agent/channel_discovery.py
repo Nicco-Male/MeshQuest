@@ -228,7 +228,7 @@ def dm_command_reply(text, gateway):
     if command == "!status":
         return "MQ %s: collegato. Modalita demo, nessun punto assegnato." % gateway.name
     if command == "!exit":
-        return "MQ: sessione chiusa. Rientra con !gateways sul canale."
+        return "MQ: sessione chiusa. Per rientrare usa !help in DM o !gateways sul canale."
     if command.startswith("!"):
         return "MQ: comando sconosciuto. Usa !help."
     return None
@@ -377,12 +377,17 @@ class ChannelDiscovery:
                 session_key = (gateway.source_id, player)
                 if self.allowed_player and self.allowed_player != player:
                     continue
-                active_until = self.sessions.get(session_key, -1e12)
-                if now >= active_until:
-                    continue
+                # A DM already names its gateway. It is a valid entry point
+                # even without !gateways / !use on the channel.
+                # Each source has an independent conversation; only actual
+                # incoming private text addressed to this radio qualifies.
                 reply = dm_command_reply(message["text"], gateway)
                 if reply is None:
                     continue
+                active_until = self.sessions.get(session_key, -1e12)
+                if now >= active_until and message["text"].strip().casefold() != "!exit":
+                    print("Direct DM session %s <- %s opened" %
+                          (gateway.name, player), flush=True)
                 if len(self.pending_commands) >= MAX_COMMAND_QUEUE:
                     print("DM command queue full; request ignored", file=sys.stderr, flush=True)
                     continue
