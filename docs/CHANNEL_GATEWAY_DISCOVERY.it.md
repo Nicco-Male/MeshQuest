@@ -52,10 +52,16 @@ MeshQuest connesso a Navacchio. Comandi: !help, !games
 Per Pisa il comando è `!use pisa`, con risposta privata da Pisa.
 Il cooldown del primo DM è di 15 secondi per giocatore e gateway.
 
-### Comandi nei DM dopo la selezione
+### Comandi nei DM: due modi per iniziare
 
-Una volta ricevuto il primo DM, il giocatore risponde **nella stessa chat
-privata con il gateway selezionato**, per esempio:
+**Scoperta:** invia `!gateways` sul canale MeshQuest, scegli il gateway
+con `!use navacchio` e rispondi nella chat DM che apre Navacchio.
+
+**Diretto:** se conosci già il gateway, apri direttamente una chat privata
+con Navacchio (o Pisa) e invia `!help` o `!games`. La prima richiesta
+valida apre automaticamente la sessione senza discovery sul canale.
+
+Esempio di conversazione DM:
 
 ```text
 !help
@@ -69,21 +75,23 @@ Salvo demo disponibile: gameplay radio e punti non ancora attivi.
 ```
 
 Il bot esegue un polling dei DM dalla stessa sorgente con
-`GET /api/v1/sources/<uuid>/messages?channel=-1&limit=100` e usa
+`GET /api/v1/sources/<uuid>/messages?channel=-1&limit=50` e usa
 `toNodeId` nell'API v1 per ogni risposta. Non apre connessioni TCP 4403.
 
 Sono supportati anche `!menu`, `!listgame`, `!join salvo`,
 `!status` e `!exit`. Sessioni in memoria per 30 minuti dall'ultimo
-comando riconosciuto; `!exit` le chiude. Non vengono assegnati XP
+comando riconosciuto; `!exit` le chiude, ma un nuovo DM valido le riapre. Non vengono assegnati XP
 o crediti, non viene avviata una partita reale, né è ancora attiva
 l'identificazione dell'account: questo è il menu **demo radio**.
 
-La prima scansione all'avvio ignora i DM storici; dopo l'aggiornamento
-occorre quindi effettuare di nuovo `!gateways` e `!use navacchio`
-prima di provare `!help` o `!games`. I comandi vengono accettati
-solo dal NodeID che ha completato la selezione e sulla radio
-selezionata. Le risposte sono distanziate di almeno 2 secondi
-per sessione quando arrivano più comandi contemporaneamente.
+La prima scansione all'avvio ignora i DM storici. Dopo il riavvio
+basta inviare un **nuovo** `!help` direttamente a Navacchio,
+senza ripetere `!gateways` o `!use`. I comandi vengono accettati
+solo se sono messaggi privati in ingresso diretti al NodeID locale
+del gateway e, se specificato, soltanto da `--allowed-player-node-id`.
+Le sessioni scadute si riaprono al prossimo comando valido.
+Le risposte sono distanziate di almeno 2 secondi per sessione
+quando arrivano più comandi contemporaneamente.
 
 
 ## Esecuzione sul CT 151
