@@ -33,6 +33,7 @@ DISCOVERY_TTL_SECONDS = 120
 SESSION_TTL_SECONDS = 30 * 60
 DM_RESPONSE_INTERVAL_SECONDS = 2.0
 MAX_COMMAND_QUEUE = 32
+MAX_HTTP_JSON_BYTES = 8 * 1024 * 1024
 
 
 @dataclass(frozen=True)
@@ -64,7 +65,19 @@ class MeshMonitorAPI:
             expected = 201 if body is not None else 200
             if response.status != expected:
                 raise RuntimeError("MeshMonitor HTTP status " + str(response.status))
-            result = json.loads(response.read(131072))
+            # MeshMonitor can return many large historical DM rows. A fixed
+            # 128 KiB read silently truncated Navacchio's response and caused
+            # a JSONDecodeError every poll. Read the full body, with a cap.
+            content = response.read(MAX_HTTP_JSON_BYTES + 1)
+            if len(content) > MAX_HTTP_JSON_BYTES:
+                raise ValueError("MeshMonitor JSON exceeds 8 MiB response limit")
+            try:
+                result = json.loads(content)
+            except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+                content_type = response.headers.get("Content-Type", "unknown")
+                # Never log raw body, auth token or user DM text.
+                raise ValueError("Invalid MeshMonitor JSON: bytes=%s, content_type=%s" %
+                                 (len(content), content_type)) from exc
         if not isinstance(result, dict) or result.get("success") is not True:
             raise ValueError("MeshMonitor returned unsuccessful or malformed response")
         return result
@@ -113,7 +126,7 @@ class MeshMonitorAPI:
     def read_dms(self, gateway):
         # Meshtastic direct messages are stored by MeshMonitor as channel -1.
         # This is a read-only per-source v1 query; no TCP/LoRa side connection.
-        q = urlencode({"channel": -1, "limit": 100})
+        q = urlencode({"channel": -1, "limit": 50})
         return self.request("/api/v1/sources/" + gateway.source_id + "/messages?" + q).get("data", [])
 
     def broadcast(self, gateway, text):
