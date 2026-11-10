@@ -64,14 +64,20 @@ valida apre automaticamente la sessione senza discovery sul canale.
 Esempio di conversazione DM:
 
 ```text
-!help
-MQ Navacchio: !games lista giochi; !play salvo demo; !status; !exit
-
 !games
-MQ giochi: Salvo (demo), Exploration (demo). Usa !play salvo
+MQ: Salvo giocabile, Exploration demo. !play salvo
 
 !play salvo
-Salvo demo disponibile: gameplay radio e punti non ancora attivi.
+Salvo avviato: 6 crediti. !scan esplora, !status profilo.
+
+!scan
+Accessibili: 1:Portale. !hack N (2c)
+
+!hack 1
+Puzzle Portale: 7+5=? Rispondi !solve N
+
+!solve 12
+Portale conquistato! 4c, 1 nodi. !scan
 ```
 
 Il bot esegue un polling dei DM dalla stessa sorgente con
@@ -80,9 +86,13 @@ Il bot esegue un polling dei DM dalla stessa sorgente con
 
 Sono supportati anche `!menu`, `!listgame`, `!join salvo`,
 `!status` e `!exit`. Sessioni in memoria per 30 minuti dall'ultimo
-comando riconosciuto; `!exit` le chiude, ma un nuovo DM valido le riapre. Non vengono assegnati XP
-o crediti, non viene avviata una partita reale, né è ancora attiva
-l'identificazione dell'account: questo è il menu **demo radio**.
+comando riconosciuto; `!exit` le chiude, ma un nuovo DM valido le riapre.
+
+**Salvo Capitolo 1 ora è giocabile:** conquista settori inventati con
+puzzle e accumula crediti virtuali persistenti sul server Pisa.
+Non sono assegnati XP Exploration e non sono modificati nodi reali.
+Vedi [Salvo via DM — Capitolo 1](SALVO_RADIO_CHAPTER1.it.md) per mappa,
+comandi e limiti del playtest.
 
 La prima scansione all'avvio ignora i DM storici. Dopo il riavvio
 basta inviare un **nuovo** `!help` direttamente a Navacchio,
