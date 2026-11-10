@@ -385,7 +385,8 @@ class ChannelDiscovery:
                 if reply is None:
                     continue
                 active_until = self.sessions.get(session_key, -1e12)
-                if now >= active_until and message["text"].strip().casefold() != "!exit":
+                new_session = now >= active_until
+                if new_session and message["text"].strip().casefold() != "!exit":
                     print("Direct DM session %s <- %s opened" %
                           (gateway.name, player), flush=True)
                 if len(self.pending_commands) >= MAX_COMMAND_QUEUE:
@@ -397,7 +398,7 @@ class ChannelDiscovery:
                 self.seq += 1
                 is_exit = message["text"].strip().casefold() == "!exit"
                 heapq.heappush(self.pending_commands,
-                               (due, self.seq, gateway, player, reply, is_exit))
+                               (due, self.seq, gateway, player, reply, is_exit, new_session))
                 if is_exit:
                     self.sessions.pop(session_key, None)
                 else:
@@ -410,7 +411,7 @@ class ChannelDiscovery:
 
     def flush_commands(self, now):
         while self.pending_commands and self.pending_commands[0][0] <= now:
-            _, _, gateway, player, reply, is_exit = heapq.heappop(self.pending_commands)
+            _, _, gateway, player, reply, is_exit, new_session = heapq.heappop(self.pending_commands)
             if not is_exit and self.sessions.get((gateway.source_id, player), -1e12) <= now:
                 continue
             if self.dry_run:
@@ -422,6 +423,10 @@ class ChannelDiscovery:
                 print("DM reply accepted %s -> %s id=%s (delivery unverified)" %
                       (gateway.name, player, request_id), flush=True)
             except (HTTPError, URLError, TimeoutError, RuntimeError, ValueError) as exc:
+                # A new direct-DM session isn't confirmed if its first reply
+                # was rejected; the player can retry a new command.
+                if new_session and not is_exit:
+                    self.sessions.pop((gateway.source_id, player), None)
                 print("DM reply failed %s: %s" % (gateway.name, type(exc).__name__),
                       file=sys.stderr, flush=True)
 
