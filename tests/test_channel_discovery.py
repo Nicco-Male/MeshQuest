@@ -50,7 +50,7 @@ def test_each_receiver_replies_once_on_channel_not_dm():
     assert api.sent == [(NAV.source_id, 5, "MQ RX Navacchio")]
     bot.flush(now=4)
     assert api.sent == [
-        (NAV.source_id, 5, "MQ RX Navacchio !eb4a6925"),
+        (NAV.source_id, 5, "MQ RX Navacchio"),
         (PISA.source_id, 5, "MQ RX Pisa"),
     ]
     bot.poll(now=6)
